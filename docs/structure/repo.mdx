@@ -1,22 +1,139 @@
-# Repository Structure
-
-The **solana-app-kit** repository is organized into these main parts:
-
-## 📁 Main Directories
-
-1. **`android/`** and **`ios/`** - Standard Native directories for React Native</span>. They contain platform-specific configuration, build scripts, Gradle/Xcode files, images, launch icons, etc.
-
-2. **`server/`** - A simple server (Express/TypeScript)</span> containing APIs for:
-   * 🔄 Jupiter/Raydium swap integration
-   * 📤 Uploading NFT metadata
-   * 🗃️ Database migrations (Knex)
-   * 📝 Program IDs & wrappers for on-chain instructions (token_mill, jupiterSwap, etc.)
-   * 🎨 Pumpfun metadata upload
-
-3. **`src/`** - The core library code</span>, which includes all React Native components, hooks, services, Redux slices, types, and utilities. This is where the majority of library functionality resides.
-
-4. **Root files** (`App.tsx`, `index.js`, `package.json`, `metro.config.js`, etc.) - Basic React Native project configuration</span>, bundler config, Babel setup, and scripts.
-
+---
+title: 'Repository Structure'
+description: 'Understanding the organization of Solana App Kit'
 ---
 
-### 🔍 Coming Next: Details of the src/ directory structure
+# Repository Structure
+
+Solana App Kit is organized into a modular structure that makes it easy to find and use the components, hooks, and services you need. This guide will help you understand how the codebase is organized.
+
+## Directory Structure
+
+```
+solana-app-kit/
+├── src/                  # Source code
+│   ├── assets/           # Images, colors, and other static assets
+│   ├── components/       # Reusable UI components
+│   ├── config/           # Configuration files and constants
+│   ├── hooks/            # Custom React hooks
+│   ├── mocks/            # Mock data for development and testing
+│   ├── navigation/       # Navigation components and configuration
+│   ├── screens/          # Full application screens
+│   ├── services/         # API and blockchain service integrations
+│   ├── state/            # Redux state management
+│   ├── utils/            # Utility functions and helpers
+│   └── index.ts          # Main entry point
+├── docs/                 # Documentation
+├── examples/             # Example applications
+└── package.json          # Dependencies and scripts
+```
+
+## Key Directories
+
+### Components
+
+The `components` directory contains all reusable UI components, organized by feature or functionality:
+
+- `thread/` - Social feed components
+- `wallet/` - Wallet and transaction components
+- `tokenMill/` - Token creation and management components
+- `pumpfun/` - Token trading components
+- And many more specialized components
+
+Each component typically includes:
+- The main component file
+- Style definitions
+- Types and interfaces
+- Utility functions specific to that component
+
+### Hooks
+
+The `hooks` directory contains custom React hooks that provide reusable logic:
+
+- `useAuth` - Authentication and user management
+- `useFetchNFTs` - NFT data fetching
+- `usePumpFun` - Token trading functionality
+- `useTradeTransaction` - Transaction handling
+- `useAppNavigation` - Navigation utilities
+- And more specialized hooks
+
+### Services
+
+The `services` directory contains modules for interacting with external APIs and blockchain:
+
+- `pumpfun/` - Services for token trading
+- `tokenMill/` - Services for token creation and management
+- `walletProviders/` - Wallet connection services (Privy, Dynamic, Turnkey)
+
+### Screens
+
+The `screens` directory contains full application screens that combine components:
+
+- `Common/` - Shared screens like login, search, etc.
+- `SampleUI/` - Example UI implementations
+  - `Chat/` - Messaging UI
+  - `Threads/` - Social feed UI
+
+### State
+
+The `state` directory contains Redux state management:
+
+- `auth/` - Authentication state
+- `thread/` - Social feed state
+- `transaction/` - Transaction state
+- `store.ts` - Redux store configuration
+
+## Usage Patterns
+
+### Importing Components
+
+```jsx
+// Import a component
+import { Thread } from 'solana-app-kit';
+
+// Or import from a specific path
+import Thread from 'solana-app-kit/components/thread/Thread';
+```
+
+### Using Hooks
+
+```jsx
+// Import hooks
+import { useAuth, useFetchNFTs } from 'solana-app-kit/hooks';
+
+function MyComponent() {
+  const { user, wallet } = useAuth();
+  const { nfts, loading } = useFetchNFTs(wallet?.publicKey);
+  
+  // Use the data...
+}
+```
+
+### Using Services
+
+```jsx
+// Import services
+import { pumpfunService } from 'solana-app-kit/services';
+
+async function buyToken() {
+  try {
+    const result = await pumpfunService.buyTokenViaPumpfun({
+      // parameters...
+    });
+    // Handle result
+  } catch (error) {
+    // Handle error
+  }
+}
+```
+
+## Customization Points
+
+Solana App Kit is designed to be customizable at various levels:
+
+1. **Theme Customization** - Through the `CustomizationProvider`
+2. **Component Props** - Most components accept customization props
+3. **Redux Integration** - You can extend or replace the Redux store
+4. **Service Overrides** - You can provide custom service implementations
+
+For more details on each section of the codebase, refer to the specific documentation pages for [Assets](./assets), [Components](./components), [Hooks](./hooks), etc.

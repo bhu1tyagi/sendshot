@@ -1,35 +1,307 @@
-# Setup & Installation
+---
+title: 'Quickstart Guide'
+description: 'Get started with Solana App Kit in minutes'
+---
 
-* **Install Xcode from the App Store**
-* **Clone the directory**
-  ```
-  git clone ...
-  cd solana-app-kit
-  ```
-* **Install dependencies**
-  ```
-  yarn install
-  ```
-* **Put your .env in both root and server folders (.env.local for client code)**
-* **Start Metro**
-  ```
-  yarn start --clear
-  ```
-  Or just
-  ```
-  yarn start
-  ```
-  Note: `--clear` removes caches—avoid running it too often to prevent slow builds.
+# Quickstart Guide
 
-## If You Still Face Issues
+This guide will help you get up and running with Solana App Kit quickly. Follow these steps to install, configure, and start using the kit in your React Native application.
 
-* In a normal terminal:
-  ```
-  sudo gem install cocoapods
-  pod --version
-  ```
-* Then navigate to the ios folder:
-  ```
-  cd ios
-  pod install
-  ```
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- Node.js (v14 or later)
+- Yarn or npm
+- React Native development environment set up
+- Basic knowledge of React Native and Solana
+
+## Installation
+
+1. **Create a new React Native project** (skip if adding to an existing project):
+
+```bash
+npx react-native init MySolanaApp
+cd MySolanaApp
+```
+
+2. **Install Solana App Kit**:
+
+```bash
+yarn add solana-app-kit
+# or
+npm install solana-app-kit
+```
+
+3. **Install peer dependencies**:
+
+```bash
+yarn add @solana/web3.js @reduxjs/toolkit react-redux react-native-svg
+```
+
+## Configuration
+
+### 1. Environment Setup
+
+Create a `.env` file in your project root with the following variables:
+
+```
+# Solana RPC URL
+RPC_URL=https://api.mainnet-beta.solana.com
+
+# Authentication provider (choose one: privy, dynamic, turnkey)
+AUTH_PROVIDER=privy
+
+# If using Privy
+PRIVY_APP_ID=your-privy-app-id
+PRIVY_CLIENT_ID=your-privy-client-id
+
+# If using Dynamic
+DYNAMIC_API_KEY=your-dynamic-api-key
+DYNAMIC_ENVIRONMENT_ID=your-dynamic-environment-id
+
+# If using Turnkey
+TURNKEY_BASE_URL=your-turnkey-base-url
+TURNKEY_RP_ID=your-turnkey-rp-id
+TURNKEY_RP_NAME=your-turnkey-rp-name
+```
+
+### 2. Provider Setup
+
+Wrap your application with the necessary providers in your `App.js` or `index.js`:
+
+```jsx
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { CustomizationProvider } from 'solana-app-kit';
+import { Provider as ReduxProvider } from 'react-redux';
+import { store } from './src/state/store';
+
+// Import your app configuration
+import { appConfig } from './src/config';
+
+function App() {
+  return (
+    <ReduxProvider store={store}>
+      <CustomizationProvider config={appConfig}>
+        <NavigationContainer>
+          {/* Your app components */}
+        </NavigationContainer>
+      </CustomizationProvider>
+    </ReduxProvider>
+  );
+}
+
+export default App;
+```
+
+### 3. App Configuration
+
+Create a configuration file at `src/config/index.js`:
+
+```jsx
+export const appConfig = {
+  auth: {
+    provider: process.env.AUTH_PROVIDER || 'privy', // 'privy', 'dynamic', or 'turnkey'
+    privy: {
+      appId: process.env.PRIVY_APP_ID,
+      clientId: process.env.PRIVY_CLIENT_ID,
+    },
+    dynamic: {
+      apiKey: process.env.DYNAMIC_API_KEY,
+      environmentId: process.env.DYNAMIC_ENVIRONMENT_ID,
+    },
+    turnkey: {
+      baseUrl: process.env.TURNKEY_BASE_URL,
+      rpId: process.env.TURNKEY_RP_ID,
+      rpName: process.env.TURNKEY_RP_NAME,
+    },
+  },
+  customization: {
+    colors: {
+      primary: '#9945FF',
+      secondary: '#14F195',
+      background: '#000000',
+      text: '#FFFFFF',
+    },
+    // Add other customization options as needed
+  },
+};
+```
+
+## Basic Usage
+
+### 1. Using Components
+
+Here's how to use some of the key components:
+
+#### Thread Component (Social Feed)
+
+```jsx
+import React from 'react';
+import { View } from 'react-native';
+import { Thread } from 'solana-app-kit';
+import { useAppSelector } from 'solana-app-kit/hooks';
+
+const FeedScreen = () => {
+  const { posts } = useAppSelector(state => state.thread);
+  const { user } = useAppSelector(state => state.auth);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Thread 
+        rootPosts={posts} 
+        currentUser={user}
+      />
+    </View>
+  );
+};
+
+export default FeedScreen;
+```
+
+#### Wallet Component
+
+```jsx
+import React from 'react';
+import { View } from 'react-native';
+import { WalletCard } from 'solana-app-kit';
+import { useAuth } from 'solana-app-kit/hooks';
+
+const WalletScreen = () => {
+  const { user, wallet } = useAuth();
+
+  return (
+    <View style={{ flex: 1, padding: 16 }}>
+      <WalletCard 
+        publicKey={wallet?.publicKey}
+        balance={wallet?.balance}
+        username={user?.username}
+      />
+    </View>
+  );
+};
+
+export default WalletScreen;
+```
+
+### 2. Using Hooks
+
+Solana App Kit provides several useful hooks:
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import { View, Text, Button } from 'react-native';
+import { 
+  useAuth, 
+  useFetchNFTs, 
+  useTradeTransaction,
+  usePumpfun
+} from 'solana-app-kit/hooks';
+
+const NFTScreen = () => {
+  const { wallet } = useAuth();
+  const { nfts, loading, error } = useFetchNFTs(wallet?.publicKey);
+  const { executeTrade, isProcessing } = useTradeTransaction();
+  const { buyToken } = usePumpfun();
+  
+  const handleBuyToken = async () => {
+    try {
+      await buyToken({
+        tokenMint: 'your-token-mint',
+        amount: 1.0,
+      });
+    } catch (error) {
+      console.error('Error buying token:', error);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, padding: 16 }}>
+      <Text>My NFTs: {nfts?.length || 0}</Text>
+      <Button 
+        title="Buy Token" 
+        onPress={handleBuyToken}
+        disabled={isProcessing}
+      />
+    </View>
+  );
+};
+
+export default NFTScreen;
+```
+
+### 3. Using Services
+
+For direct blockchain interactions, use the provided services:
+
+```jsx
+import { pumpfunService, tokenMillService } from 'solana-app-kit/services';
+
+// Buy a token via Pumpfun
+const buyToken = async () => {
+  try {
+    const result = await pumpfunService.buyTokenViaPumpfun({
+      tokenMint: 'your-token-mint',
+      amountIn: 1.0, // SOL amount
+      slippage: 0.5, // 0.5%
+    });
+    console.log('Transaction successful:', result);
+  } catch (error) {
+    console.error('Error buying token:', error);
+  }
+};
+
+// Create a token market
+const createMarket = async () => {
+  try {
+    const result = await tokenMillService.createMarket({
+      name: 'My Token',
+      symbol: 'MYTKN',
+      initialSupply: 1000000,
+    });
+    console.log('Market created:', result);
+  } catch (error) {
+    console.error('Error creating market:', error);
+  }
+};
+```
+
+## Troubleshooting
+
+If you encounter issues during setup:
+
+1. **Dependency Issues**:
+   ```bash
+   yarn install --check-files
+   ```
+
+2. **iOS Build Issues**:
+   ```bash
+   cd ios
+   pod install
+   cd ..
+   ```
+
+3. **Android Build Issues**:
+   ```bash
+   cd android
+   ./gradlew clean
+   cd ..
+   ```
+
+4. **Metro Bundler Issues**:
+   ```bash
+   yarn start --reset-cache
+   ```
+
+## Next Steps
+
+Now that you have Solana App Kit set up, explore the following sections to learn more:
+
+- [Repository Structure](./structure/repo) - Understand the codebase organization
+- [Components](./structure/components) - Explore available UI components
+- [Hooks](./structure/hooks) - Learn about custom React hooks
+- [Services](./structure/services) - Discover blockchain interaction services
+
+For more advanced usage, check out the [Functions](./functions/thread) section to see how to implement specific features.

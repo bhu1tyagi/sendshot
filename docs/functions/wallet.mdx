@@ -1,46 +1,379 @@
-# Wallet Providers
+---
+title: 'Wallet Functions'
+description: 'Wallet integration and management in Solana App Kit'
+---
 
-## Overview
-The `services/walletProviders` folder contains logic for multiple wallet services, with the `useAuth` hook determining which provider to use based on configuration.
+# Wallet Functions
 
-## Supported Providers
+Solana App Kit provides comprehensive wallet functionality, including multiple authentication providers, wallet display components, and transaction management. This guide explains how to use the wallet features.
 
-### 🔐 Privy
-- Social login options
-- Email authentication
-- Wallet creation and recovery
-- Transaction signing
+## Authentication Providers
 
-### 🌐 Dynamic
-- Multi-chain support
-- Embedded wallet creation
-- Social authentication
-- Key management
+Solana App Kit supports multiple wallet authentication providers:
 
-### 🔑 Turnkey
-- Enhanced security features
-- Key management
-- MPC capabilities
-- Recovery options
+1. **Privy** - Email and social login with embedded wallets
+2. **Dynamic** - Multi-chain wallet connection
+3. **Turnkey** - MPC-based wallet solution
 
-## Integration
+### Configuration
 
-### 🧩 Provider Architecture
-Each provider implements standard interfaces:
-- Initialization
-- Login/logout flows
-- Signature generation
-- State management
+Configure your preferred wallet provider in your app configuration:
 
-### 🔄 useAuth Hook
-Central authentication logic:
-- Selects appropriate provider based on config
-- Dispatches Redux actions
-- Manages auth state
-- Provides consistent API regardless of provider
+```jsx
+// src/config/index.js
+export const appConfig = {
+  auth: {
+    provider: 'privy', // 'privy', 'dynamic', or 'turnkey'
+    privy: {
+      appId: process.env.PRIVY_APP_ID,
+      clientId: process.env.PRIVY_CLIENT_ID,
+    },
+    dynamic: {
+      apiKey: process.env.DYNAMIC_API_KEY,
+      environmentId: process.env.DYNAMIC_ENVIRONMENT_ID,
+    },
+    turnkey: {
+      baseUrl: process.env.TURNKEY_BASE_URL,
+      rpId: process.env.TURNKEY_RP_ID,
+      rpName: process.env.TURNKEY_RP_NAME,
+    },
+  },
+  // Other configuration...
+};
+```
 
-### ⚙️ Configuration
-- Provider selection via config
-- Feature toggles
-- Network settings
-- Debug options
+## Wallet Components
+
+### EmbeddedWallet Component
+
+The `EmbeddedWallet` component provides a complete wallet authentication UI:
+
+```jsx
+import React from 'react';
+import { EmbeddedWallet } from 'solana-app-kit';
+
+const LoginScreen = () => {
+  const handleSuccess = (user) => {
+    console.log('User authenticated:', user);
+    // Navigate to main app
+  };
+
+  return (
+    <EmbeddedWallet 
+      onSuccess={handleSuccess}
+      onError={(error) => console.error('Auth error:', error)}
+      themeOverrides={{
+        colors: {
+          primary: '#9945FF',
+          background: '#000000',
+        },
+      }}
+    />
+  );
+};
+```
+
+### WalletCard Component
+
+The `WalletCard` component displays wallet information and balance:
+
+```jsx
+import React from 'react';
+import { WalletCard } from 'solana-app-kit';
+import { useAuth } from 'solana-app-kit/hooks';
+
+const WalletScreen = () => {
+  const { user, wallet } = useAuth();
+
+  return (
+    <WalletCard 
+      publicKey={wallet?.publicKey}
+      balance={wallet?.balance}
+      username={user?.username}
+      showActions={true}
+      onDisconnect={() => console.log('Disconnect clicked')}
+      onCopy={() => console.log('Address copied')}
+    />
+  );
+};
+```
+
+### WalletSlide Component
+
+The `WalletSlide` component provides a slide-in panel with portfolio information:
+
+```jsx
+import React, { useState } from 'react';
+import { Button } from 'react-native';
+import { WalletSlide } from 'solana-app-kit';
+
+const HomeScreen = () => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <>
+      <Button 
+        title="Show Wallet" 
+        onPress={() => setIsVisible(true)} 
+      />
+      <WalletSlide 
+        isVisible={isVisible}
+        onClose={() => setIsVisible(false)}
+        portfolioData={portfolioData}
+      />
+    </>
+  );
+};
+```
+
+## Hooks
+
+### useAuth Hook
+
+The `useAuth` hook provides access to authentication state and functions:
+
+```jsx
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+import { useAuth } from 'solana-app-kit/hooks';
+
+const ProfileScreen = () => {
+  const { 
+    user,
+    wallet,
+    isAuthenticated,
+    isLoading,
+    login,
+    logout,
+    updateProfile
+  } = useAuth();
+
+  if (isLoading) {
+    return <Text>Loading...</Text>;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Button 
+        title="Login" 
+        onPress={login} 
+      />
+    );
+  }
+
+  return (
+    <View>
+      <Text>Welcome, {user.username}!</Text>
+      <Text>Wallet: {wallet.publicKey.toString()}</Text>
+      <Button 
+        title="Update Profile" 
+        onPress={() => updateProfile({ username: 'newUsername' })} 
+      />
+      <Button 
+        title="Logout" 
+        onPress={logout} 
+      />
+    </View>
+  );
+};
+```
+
+### useDynamicWalletLogic Hook
+
+For Dynamic wallet integration:
+
+```jsx
+import { useDynamicWalletLogic } from 'solana-app-kit/hooks';
+
+const WalletScreen = () => {
+  const {
+    connect,
+    disconnect,
+    isConnected,
+    publicKey,
+    balance,
+    signTransaction,
+    signMessage
+  } = useDynamicWalletLogic();
+
+  // Use these functions to interact with the wallet
+};
+```
+
+## Transaction Management
+
+### PriorityFeeSelector Component
+
+The `PriorityFeeSelector` component allows users to select transaction priority fees:
+
+```jsx
+import React, { useState } from 'react';
+import { PriorityFeeSelector } from 'solana-app-kit';
+
+const TransactionScreen = () => {
+  const [selectedFee, setSelectedFee] = useState('medium');
+
+  return (
+    <PriorityFeeSelector
+      selectedFee={selectedFee}
+      onSelectFee={setSelectedFee}
+    />
+  );
+};
+```
+
+### Transaction Services
+
+Solana App Kit provides utilities for sending transactions:
+
+```jsx
+import { 
+  sendPriorityTransaction,
+  sendJitoBundleTransaction
+} from 'solana-app-kit/utils/transactions';
+
+// Send a transaction with priority fee
+const sendTransaction = async (transaction, wallet) => {
+  try {
+    const result = await sendPriorityTransaction({
+      transaction,
+      wallet,
+      priorityFee: 'high', // 'low', 'medium', 'high'
+    });
+    console.log('Transaction sent:', result);
+  } catch (error) {
+    console.error('Error sending transaction:', error);
+  }
+};
+
+// Send a transaction via Jito MEV bundle
+const sendBundleTransaction = async (transaction, wallet) => {
+  try {
+    const result = await sendJitoBundleTransaction({
+      transaction,
+      wallet,
+    });
+    console.log('Bundle transaction sent:', result);
+  } catch (error) {
+    console.error('Error sending bundle transaction:', error);
+  }
+};
+```
+
+## Redux Integration
+
+Solana App Kit includes Redux state management for authentication:
+
+```jsx
+import { useAppDispatch, useAppSelector } from 'solana-app-kit/hooks';
+import { 
+  loginSuccess, 
+  logoutSuccess, 
+  updateUsername,
+  updateProfilePic,
+  fetchUserProfile
+} from 'solana-app-kit/state/auth/reducer';
+
+const AuthContainer = () => {
+  const dispatch = useAppDispatch();
+  const { user, isAuthenticated, isLoading } = useAppSelector(state => state.auth);
+  
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchUserProfile(user.id));
+    }
+  }, [isAuthenticated, dispatch, user?.id]);
+  
+  const handleLogin = (userData) => {
+    dispatch(loginSuccess(userData));
+  };
+  
+  const handleLogout = () => {
+    dispatch(logoutSuccess());
+  };
+  
+  const handleUpdateUsername = (newUsername) => {
+    dispatch(updateUsername(newUsername));
+  };
+  
+  // Render your UI with these handlers
+};
+```
+
+## Wallet Utilities
+
+Solana App Kit provides utility functions for common wallet operations:
+
+```jsx
+import { 
+  fetchSolBalance,
+  fetchTokenAccounts,
+  fetchTokenAccountBalance,
+  lamportsToSol,
+  solToLamports
+} from 'solana-app-kit/utils/common';
+
+// Fetch SOL balance
+const getBalance = async (publicKey) => {
+  const balance = await fetchSolBalance(publicKey);
+  console.log('SOL Balance:', lamportsToSol(balance));
+};
+
+// Fetch token accounts
+const getTokens = async (publicKey) => {
+  const tokenAccounts = await fetchTokenAccounts(publicKey);
+  console.log('Token Accounts:', tokenAccounts);
+  
+  // Get balance of a specific token
+  if (tokenAccounts.length > 0) {
+    const tokenBalance = await fetchTokenAccountBalance(tokenAccounts[0].pubkey);
+    console.log('Token Balance:', tokenBalance);
+  }
+};
+
+// Convert between SOL and lamports
+const amount = 1.5; // SOL
+const lamports = solToLamports(amount);
+console.log(`${amount} SOL = ${lamports} lamports`);
+const solAmount = lamportsToSol(lamports);
+console.log(`${lamports} lamports = ${solAmount} SOL`);
+```
+
+## Customization
+
+The wallet components can be customized through theme overrides:
+
+```jsx
+const walletThemeOverrides = {
+  colors: {
+    primary: '#9945FF',
+    secondary: '#14F195',
+    background: '#000000',
+    text: '#FFFFFF',
+    border: '#333333',
+  },
+  typography: {
+    fontFamily: 'Roboto',
+    fontSize: {
+      small: 12,
+      medium: 14,
+      large: 16,
+    },
+  },
+  spacing: {
+    small: 8,
+    medium: 16,
+    large: 24,
+  },
+  borderRadius: 8,
+};
+
+<WalletCard 
+  publicKey={wallet?.publicKey}
+  balance={wallet?.balance}
+  username={user?.username}
+  themeOverrides={walletThemeOverrides}
+/>
+```
+
+For more detailed information on wallet functionality, refer to the [Wallet Component Reference](../references/components/wallet) documentation.

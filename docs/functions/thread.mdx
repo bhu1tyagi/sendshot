@@ -1,36 +1,287 @@
-# Thread-based Social Feed
+---
+title: 'Thread Functions'
+description: 'Social feed functionality in Solana App Kit'
+---
 
-## Overview
-A Twitter-like or Reddit-like post & reply system created by combining components from `src/components/thread` and `src/state/thread`.
+# Thread Functions
 
-## Key Features
+The Thread system in Solana App Kit provides a complete social feed experience with posts, replies, reactions, and rich media content. This guide explains how to use the Thread components and related functions.
 
-### 📱 Content Types
-Users can post various content:
-- Text posts
-- Images and media
-- Interactive polls
-- Trade information
-- NFT listings
+## Core Components
 
-### 🧩 Component Structure
-Built from modular components:
-- `Thread.tsx` - Container for multiple posts
-- `ThreadItem.tsx` - Individual post rendering
-- Post section components:
-  - `PostHeader`
-  - `PostBody`
-  - `PostFooter`
-  - `PostCTA`
+### Thread Component
 
-### 🔄 State Management
-Utilizes Redux for state handling:
-- Async thunks for data fetching
-- Post creation operations
-- Reply management
-- Content updates
+The main `Thread` component renders a complete social feed:
 
-### 🎨 Customization
-- Theme customization via `thread.theme.ts`
-- Styling utilities in `thread.styles.ts`
-- Type definitions in `thread.types.ts`
+```jsx
+import React from 'react';
+import { Thread } from 'solana-app-kit';
+import { useAppSelector } from 'solana-app-kit/hooks';
+
+const FeedScreen = () => {
+  const { posts } = useAppSelector(state => state.thread);
+  const { user } = useAppSelector(state => state.auth);
+
+  return (
+    <Thread 
+      rootPosts={posts} 
+      currentUser={user}
+      onPostCreate={handlePostCreate}
+      onReplyCreate={handleReplyCreate}
+      onReaction={handleReaction}
+    />
+  );
+};
+```
+
+### ThreadComposer Component
+
+The `ThreadComposer` component provides a UI for creating new posts:
+
+```jsx
+import React from 'react';
+import { ThreadComposer } from 'solana-app-kit';
+
+const ComposerScreen = () => {
+  const handlePostCreate = (newPost) => {
+    // Handle the new post
+    console.log('New post created:', newPost);
+  };
+
+  return (
+    <ThreadComposer 
+      currentUser={currentUser}
+      onPostCreate={handlePostCreate}
+      placeholder="What's happening?"
+      showAttachmentOptions={true}
+    />
+  );
+};
+```
+
+## Data Structure
+
+The Thread system uses a specific data structure for posts:
+
+```typescript
+interface ThreadPost {
+  id: string;
+  user: ThreadUser;
+  parentId?: string;
+  content?: string;
+  sections?: ThreadSection[];
+  createdAt: string;
+  reactions?: Record<string, number>;
+  replies?: ThreadPost[];
+}
+
+interface ThreadUser {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+  verified?: boolean;
+}
+
+interface ThreadSection {
+  type: 'text-only' | 'text-image' | 'text-video' | 'nft-listing' | 'poll' | 'trade';
+  content: string;
+  media?: string;
+  data?: NftListingData | PollData | TradeData;
+}
+```
+
+## Redux Integration
+
+The Thread system integrates with Redux for state management. Here's how to use the thread slice:
+
+```jsx
+import { useAppDispatch, useAppSelector } from 'solana-app-kit/hooks';
+import { 
+  addPostLocally, 
+  addReplyLocally, 
+  createRootPostAsync,
+  createReplyAsync,
+  addReactionAsync,
+  deletePostAsync,
+  fetchAllPosts
+} from 'solana-app-kit/state/thread/reducer';
+
+const ThreadContainer = () => {
+  const dispatch = useAppDispatch();
+  const { posts, loading } = useAppSelector(state => state.thread);
+  
+  useEffect(() => {
+    dispatch(fetchAllPosts());
+  }, [dispatch]);
+  
+  const handleCreatePost = (postData) => {
+    dispatch(createRootPostAsync(postData));
+  };
+  
+  const handleCreateReply = (parentId, replyData) => {
+    dispatch(createReplyAsync({ parentId, replyData }));
+  };
+  
+  const handleAddReaction = (postId, reactionType) => {
+    dispatch(addReactionAsync({ postId, reactionType }));
+  };
+  
+  const handleDeletePost = (postId) => {
+    dispatch(deletePostAsync(postId));
+  };
+  
+  // Render your UI with these handlers
+};
+```
+
+## Utility Functions
+
+The Thread system includes several utility functions:
+
+```jsx
+import { 
+  findPostById, 
+  gatherAncestorChain, 
+  generateId, 
+  removePostRecursive 
+} from 'solana-app-kit/components/thread/thread.utils';
+
+// Find a post by ID in the thread tree
+const post = findPostById(posts, 'post-123');
+
+// Get the chain of ancestors for a post
+const ancestors = gatherAncestorChain(posts, 'reply-456');
+
+// Generate a unique ID for a new post
+const newId = generateId();
+
+// Remove a post and all its replies
+const updatedPosts = removePostRecursive(posts, 'post-789');
+```
+
+## Creating Custom Thread Sections
+
+You can create custom thread sections by extending the `ThreadSection` type:
+
+```jsx
+import React from 'react';
+import { View, Text } from 'react-native';
+import { Thread } from 'solana-app-kit';
+
+// Custom section renderer
+const CustomSectionRenderer = ({ section }) => {
+  if (section.type === 'custom-section') {
+    return (
+      <View style={{ padding: 16, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
+        <Text>{section.content}</Text>
+        {section.data && <Text>Custom data: {JSON.stringify(section.data)}</Text>}
+      </View>
+    );
+  }
+  return null;
+};
+
+// Use the custom renderer
+const CustomThread = () => {
+  return (
+    <Thread 
+      rootPosts={posts}
+      currentUser={user}
+      sectionRenderers={{
+        'custom-section': CustomSectionRenderer
+      }}
+    />
+  );
+};
+```
+
+## On-Chain Integration
+
+To integrate the Thread system with on-chain data, you can use the following pattern:
+
+```jsx
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { Thread, ThreadComposer } from 'solana-app-kit';
+import { createRootPostAsync } from 'solana-app-kit/state/thread/reducer';
+
+const OnChainThread = () => {
+  const dispatch = useAppDispatch();
+  const { connection } = useConnection();
+  const { publicKey, signTransaction } = useWallet();
+  
+  const handleCreatePost = async (postData) => {
+    try {
+      // Create an on-chain transaction for the post
+      // This is a simplified example - you would need to implement
+      // the actual on-chain program interaction
+      const transaction = createPostTransaction(postData, publicKey);
+      
+      // Sign and send the transaction
+      const signedTx = await signTransaction(transaction);
+      const signature = await connection.sendRawTransaction(signedTx.serialize());
+      await connection.confirmTransaction(signature);
+      
+      // Update the local state
+      dispatch(createRootPostAsync({
+        ...postData,
+        signature,
+        timestamp: Date.now(),
+      }));
+    } catch (error) {
+      console.error('Error creating post on-chain:', error);
+    }
+  };
+  
+  return (
+    <>
+      <ThreadComposer 
+        currentUser={currentUser}
+        onPostCreate={handleCreatePost}
+      />
+      <Thread 
+        rootPosts={posts}
+        currentUser={currentUser}
+      />
+    </>
+  );
+};
+```
+
+## Customization
+
+The Thread system is highly customizable through theme overrides:
+
+```jsx
+const threadThemeOverrides = {
+  colors: {
+    primary: '#1DA1F2',
+    secondary: '#657786',
+    background: '#FFFFFF',
+    text: '#14171A',
+    border: '#E1E8ED',
+  },
+  typography: {
+    fontFamily: 'Roboto',
+    fontSize: {
+      small: 12,
+      medium: 14,
+      large: 16,
+    },
+  },
+  spacing: {
+    small: 8,
+    medium: 16,
+    large: 24,
+  },
+  borderRadius: 8,
+};
+
+<Thread 
+  rootPosts={posts}
+  currentUser={user}
+  themeOverrides={threadThemeOverrides}
+/>
+```
+
+For more detailed information on the Thread system, refer to the [Thread Component Reference](../references/components/thread/Thread) documentation.

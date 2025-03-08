@@ -98,27 +98,105 @@ function updateMintJson() {
       // Create a new pages array with the main references entry
       const newPages = ['docs/references'];
       
-      // Add all the .mdx files to the pages array
+      // Create a map to organize files by directory
+      const directoryMap = {};
+      
+      // Process each file and organize by directory
       mdxFiles.forEach(file => {
         // Remove the .mdx extension for the navigation
         const navPath = file.replace(/\.mdx$/, '');
-        if (!newPages.includes(navPath)) {
-          newPages.push(navPath);
+        
+        // Skip the main references file
+        if (navPath === 'docs/references') return;
+        
+        // Get the directory structure
+        const parts = navPath.split('/');
+        
+        // Skip if there are not enough parts (should be at least docs/references/something)
+        if (parts.length < 3) return;
+        
+        // Start from the references directory
+        let currentLevel = directoryMap;
+        let currentPath = 'docs/references';
+        
+        // Build the nested structure
+        for (let i = 2; i < parts.length - 1; i++) {
+          const part = parts[i];
+          currentPath = `${currentPath}/${part}`;
+          
+          if (!currentLevel[part]) {
+            currentLevel[part] = {
+              path: currentPath,
+              children: {}
+            };
+          }
+          
+          currentLevel = currentLevel[part].children;
+        }
+        
+        // Add the file to the current level
+        const fileName = parts[parts.length - 1];
+        if (!currentLevel[fileName]) {
+          currentLevel[fileName] = {
+            path: navPath,
+            isFile: true
+          };
         }
       });
       
-      console.log('Original pages:', referenceGroup.pages);
-      console.log('New pages:', newPages);
+      // Function to convert the directory map to Mintlify navigation structure
+      function buildNavigationStructure(dirMap, parentPath = '') {
+        const result = [];
+        
+        // First, add all files at this level
+        Object.keys(dirMap).forEach(key => {
+          const item = dirMap[key];
+          if (item.isFile) {
+            result.push(item.path);
+          }
+        });
+        
+        // Then, add all directories as groups
+        Object.keys(dirMap).forEach(key => {
+          const item = dirMap[key];
+          if (!item.isFile) {
+            const children = buildNavigationStructure(item.children, item.path);
+            if (children.length > 0) {
+              // If the directory has a README file, add it first
+              const readmePath = `${item.path}/README`;
+              if (children.includes(readmePath)) {
+                // Move README to the beginning
+                const index = children.indexOf(readmePath);
+                children.splice(index, 1);
+                children.unshift(readmePath);
+              }
+              
+              result.push({
+                group: key,
+                pages: children
+              });
+            }
+          }
+        });
+        
+        return result;
+      }
       
-      // Update the pages array
-      referenceGroup.pages = newPages;
+      // Build the navigation structure
+      const navigationStructure = buildNavigationStructure(directoryMap);
+      
+      // Update the pages array with the new structure
+      referenceGroup.pages = newPages.concat(navigationStructure);
+      
+      console.log('Original pages:', JSON.stringify(referenceGroup.pages, null, 2));
+      console.log('New pages structure created with nested subgroups');
     } else {
       console.log('Reference group not found in mint.json');
     }
 
     // Write the updated mint.json back to file
     fs.writeFileSync(mintJsonPath, JSON.stringify(mintJson, null, 2));
-    console.log(`Updated mint.json with all nested folders and files`);
+    console.log(`Updated mint.json with nested subgroups for folders`);
     
   } catch (error) {
     console.error('Error updating mint.json:', error);

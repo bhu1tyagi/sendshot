@@ -1,57 +1,174 @@
-# src/components
+---
+title: 'Components'
+description: 'Overview of UI components in Solana App Kit'
+---
 
-This directory houses reusable React Native UI components organized into logical subfolders.
+# Components
 
-## Component Subfolders
+Solana App Kit provides a rich set of pre-built UI components that you can use to quickly build your Solana application. These components are designed to be modular, customizable, and easy to integrate.
 
-### 📱 BlinkRequestCard
-Example of a UI card that was used for Dialect "blink" requests.
+## Component Categories
 
-### 👤 otherProfile
-Renders a user's profile with:
-- Top navigation
-- ProfileInfo
-- Slider of posts
-- Other profile-related UI elements
+The components are organized into several categories based on their functionality:
 
-### 🚀 pumpfun
-React components for integrating the Pump.fun token lifecycle:
-- `PumpfunBuySection`
-- `PumpfunSellSection`
-- `PumpfunLaunchSection`
-- Other components handling token operations
+### Social Components
 
-### 💬 thread
-The largest subfolder containing all code for a "Thread" or "Post" system:
+- **Thread** - A complete social feed system with posts, replies, and reactions
+- **ThreadItem** - Individual post items within a thread
+- **ThreadComposer** - UI for creating new posts and replies
+- **Tweet** - Simplified post display component
 
-| File/Folder | Description |
-|-------------|-------------|
-| `Thread.tsx` | Renders a list of root posts, optional composer, and sub-threads |
-| `ThreadItem.tsx` | One post or "thread item," including PostHeader, PostFooter, recursion for replies |
-| `PostHeader`, `PostBody`, `PostFooter`, `PostCTA` | Breaks out post sections (header with avatar, main body with text/images, etc.) |
-| `thread.types.ts` | Types for post sections, user data, trades, polls |
-| `sections/` | Files like `SectionTextOnly`, `SectionNftListing`, `SectionPoll` that display particular types of content |
-| `TradeModal.tsx` | Specialized modal replicating Jupiter swap transactions for demonstration/copy trading |
-| `thread.styles.ts` and `thread.theme.ts` | Define theming & styling utilities |
+### Wallet Components
 
-### 💰 tokenMill
-UI with integration of "Token Mill" features:
-- Create markets
-- Staking
-- Vesting
-- Custom bonding curve configurations
+- **WalletCard** - Display wallet information and balance
+- **WalletSlide** - Slide-in wallet panel with portfolio information
+- **EmbeddedWallet** - Embedded wallet authentication component
+- **PriorityFeeSelector** - UI for selecting transaction priority fees
 
-### 📊 TradeCard
-A read-only card showing input token → output token, used for "copy trade" functionality.
+### Trading Components
 
-## Notable Shared Components
+- **TradeCard** - Card for displaying and executing trades
+- **PumpfunCard** - Interface for Pumpfun token trading
+- **PumpfunBuySection** - UI for buying tokens via Pumpfun
+- **PumpfunSellSection** - UI for selling tokens via Pumpfun
 
-### ✏️ ThreadComposer.tsx
-Lets a user type a new post or reply, with features for:
-- Image picking
-- NFT listing
-- Trade sharing
-- Other interactive elements
+### Token Management Components
 
-### 💱 TradeCard.tsx
-Takes trade data (input symbol, output symbol, aggregator info, etc.) and displays it as a styled "swap preview" card.
+- **TokenMillScreen** - Complete screen for token creation and management
+- **BondingCurveCard** - Configure token bonding curves
+- **MarketCreationCard** - Create new token markets
+- **SwapCard** - Interface for token swapping
+- **StakingCard** - Interface for token staking
+
+### Profile Components
+
+- **OtherProfile** - Display another user's profile
+- **ProfileInfo** - Display profile information
+- **BuyCard** - Interface for buying creator tokens
+- **PerksCard** - Display token holder perks
+
+### Navigation Components
+
+- **TopNavigation** - Top navigation bar
+- **AnimatedTabIcon** - Animated icons for tab navigation
+
+## Using Components
+
+Most components can be imported directly from the main package:
+
+```jsx
+import { Thread, WalletCard, TradeCard } from 'solana-app-kit';
+```
+
+For more specific components, you may need to import from their specific path:
+
+```jsx
+import PumpfunBuySection from 'solana-app-kit/components/pumpfun/PumpfunBuySection';
+```
+
+## Component Props
+
+Each component accepts a set of props for customization. Here are some examples:
+
+### Thread Component
+
+```jsx
+<Thread
+  rootPosts={posts}                // Array of root-level posts
+  currentUser={user}               // Current user object
+  onPostCreate={handlePostCreate}  // Function called when a post is created
+  onReplyCreate={handleReply}      // Function called when a reply is created
+  onReaction={handleReaction}      // Function called when a reaction is added
+  themeOverrides={customTheme}     // Custom theme overrides
+/>
+```
+
+### WalletCard Component
+
+```jsx
+<WalletCard
+  publicKey={wallet.publicKey}     // Wallet public key
+  balance={wallet.balance}         // Wallet balance
+  username={user.username}         // Username to display
+  onDisconnect={handleDisconnect}  // Function called when disconnect is clicked
+  showActions={true}               // Whether to show action buttons
+/>
+```
+
+### PumpfunBuySection Component
+
+```jsx
+<PumpfunBuySection
+  tokenMint="your-token-mint"      // Token mint address
+  initialAmount={1.0}              // Initial amount to buy
+  onSuccess={handleSuccess}        // Function called on successful purchase
+  onError={handleError}            // Function called on error
+/>
+```
+
+## Component Composition
+
+Many components are designed to work together. For example, you can combine the Thread component with the ThreadComposer:
+
+```jsx
+import React from 'react';
+import { View } from 'react-native';
+import { Thread, ThreadComposer } from 'solana-app-kit';
+
+const SocialFeed = () => {
+  const [posts, setPosts] = useState([]);
+  
+  const handlePostCreate = (newPost) => {
+    setPosts([newPost, ...posts]);
+  };
+  
+  return (
+    <View style={{ flex: 1 }}>
+      <ThreadComposer 
+        currentUser={currentUser}
+        onPostCreate={handlePostCreate}
+      />
+      <Thread 
+        rootPosts={posts}
+        currentUser={currentUser}
+      />
+    </View>
+  );
+};
+```
+
+## Styling and Theming
+
+Most components accept style overrides and theme customizations:
+
+1. **Direct style props** - Many components accept a `style` prop for direct styling
+2. **Theme overrides** - Components accept a `themeOverrides` prop for theme-based styling
+3. **Global theming** - Use the `CustomizationProvider` for app-wide theming
+
+Example of theme overrides:
+
+```jsx
+const themeOverrides = {
+  colors: {
+    primary: '#3498db',
+    secondary: '#2ecc71',
+    background: '#f5f5f5',
+    text: '#333333',
+  },
+  spacing: {
+    small: 8,
+    medium: 16,
+    large: 24,
+  },
+};
+
+<Thread 
+  rootPosts={posts}
+  currentUser={user}
+  themeOverrides={themeOverrides}
+/>
+```
+
+## Component Documentation
+
+For detailed documentation on each component, including all available props and usage examples, refer to the specific component pages in the Reference section.
