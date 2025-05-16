@@ -237,7 +237,7 @@ export default function ModuleScreen() {
       {/* Replace custom header with reusable AppHeader */}
       <AppHeader
         title="Launchpads"
-        showBackButton={true}
+        showBackButton={false}
         onBackPress={handleBack}
       />
 

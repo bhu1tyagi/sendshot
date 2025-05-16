@@ -110,11 +110,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   return (
     <View style={[styles.container, style]}>
       {/* Left: Back button or custom component */}
-      {/* {leftComponent || (showBackButton && (
+      {leftComponent || (showBackButton && (
         <TouchableOpacity onPress={handleBackPress} style={styles.leftButton}>
           <Icons.ArrowLeft width={24} height={24} color={COLORS.white} />
         </TouchableOpacity>
-      )) || <View style={styles.leftPlaceholder} />} */}
+      )) || <View style={styles.leftPlaceholder} />}
 
       {/* Center: Title */}
       {title && (
