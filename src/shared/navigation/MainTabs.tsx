@@ -14,6 +14,8 @@ import FeedScreen from '@/screens/SampleUI/Threads/FeedScreen/FeedScreen';
 import SwapScreen from '@/screens/SampleUI/Swap';
 import ModuleScreen from '@/screens/Common/LaunhcModulesScreen/LaunchModules';
 import { ChatListScreen } from '@/screens/SampleUI/Chat';
+import HoldingsScreen from '@/screens/SampleUI/Holdings/HoldingsScreen';
+import TokenFeedScreen from '@/screens/SampleUI/Tokens/TokenFeedScreen';
 
 // Platform icons matching PlatformSelectionScreen
 const platformIcons = {
@@ -179,7 +181,7 @@ export default function MainTabs() {
       </Animated.View>
 
       <Tab.Navigator
-        initialRouteName="Feed"
+        initialRouteName="Modules"
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
@@ -203,88 +205,6 @@ export default function MainTabs() {
           ),
         }}>
         <Tab.Screen
-          name="Swap"
-          component={SwapScreen}
-          options={{
-            tabBarIcon: ({ focused, size }) => (
-              <AnimatedTabIcon
-                focused={focused}
-                size={size * 1}
-                icon={
-                  Icons.SwapNavIcon as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                iconSelected={
-                  Icons.SwapNavIconSelected as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                style={iconStyle}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="Feed"
-          component={StableFeedComponent}
-          options={{
-            tabBarIcon: ({ focused, size }) => (
-              <AnimatedTabIcon
-                focused={focused}
-                size={size * 1.15}
-                icon={
-                  Icons.FeedIcon as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                iconSelected={
-                  Icons.FeedIconSelected as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                style={{
-                  shadowColor: COLORS.black,
-                  shadowOffset: { width: 0, height: 15 },
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }}
-              />
-            ),
-          }}
-        />
-
-        <Tab.Screen
-          name="Search"
-          component={ChatListScreen}
-          options={{
-            tabBarIcon: ({ focused, size }) => (
-              <AnimatedTabIcon
-                focused={focused}
-                size={size * 1.25}
-                icon={
-                  Icons.ChatIcon as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                iconSelected={
-                  Icons.ChatIconSelected as React.ComponentType<{
-                    width: number;
-                    height: number;
-                  }>
-                }
-                style={iconStyle}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
           name="Modules"
           component={ModuleScreen}
           options={{
@@ -302,6 +222,62 @@ export default function MainTabs() {
                   Icons.RocketIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
+                  }>
+                }
+                style={iconStyle}
+              />
+            ),
+          }}
+        />
+
+        {/* Token Feed Screen */}
+        <Tab.Screen
+          name="TokenFeed"
+          component={TokenFeedScreen}
+          options={{
+            tabBarIcon: ({ focused, size }) => (
+              <AnimatedTabIcon
+                focused={focused}
+                size={size * 1.2}
+                icon={
+                  Icons.SwapNavIcon as React.ComponentType<{
+                    width: number;
+                    height: number;
+                  }>
+                }
+                iconSelected={
+                  Icons.SwapNavIconSelected as React.ComponentType<{
+                    width: number;
+                    height: number;
+                  }>
+                }
+                style={iconStyle}
+              />
+            ),
+          }}
+        />
+
+        {/* Holdings Screen */}
+        <Tab.Screen
+          name="Holdings"
+          component={HoldingsScreen}
+          options={{
+            tabBarIcon: ({ focused, size }) => (
+              <AnimatedTabIcon
+                focused={focused}
+                size={size * 1.2}
+                icon={
+                  Icons.HoldingsIcon as React.ComponentType<{
+                    width: number;
+                    height: number;
+                    color?: string;
+                  }>
+                }
+                iconSelected={
+                  Icons.HoldingsIconSelected as React.ComponentType<{
+                    width: number;
+                    height: number;
+                    color?: string;
                   }>
                 }
                 style={iconStyle}

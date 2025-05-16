@@ -276,7 +276,7 @@ PODS:
     - ExpoModulesCore
   - ExpoSplashScreen (0.29.24):
     - ExpoModulesCore
-  - ExpoSystemUI (5.0.7):
+  - ExpoSystemUI (4.0.9):
     - ExpoModulesCore
   - ExpoWebBrowser (14.0.2):
     - ExpoModulesCore
@@ -1918,11 +1918,9 @@ PODS:
     - React-logger
     - React-perflogger
     - React-utils (= 0.76.9)
-  - ReactNativePasskeys (0.3.1):
-    - ExpoModulesCore
-  - RNCAsyncStorage (1.24.0):
+  - RNCAsyncStorage (1.23.1):
     - React-Core
-  - RNGestureHandler (2.25.0):
+  - RNGestureHandler (2.20.2):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1964,7 +1962,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNReanimated (3.17.5):
+  - RNReanimated (3.16.7):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1976,9 +1974,7 @@ PODS:
     - React-Fabric
     - React-featureflags
     - React-graphics
-    - React-hermes
     - React-ImageManager
-    - React-jsi
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -1986,10 +1982,10 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNReanimated/reanimated (= 3.17.5)
-    - RNReanimated/worklets (= 3.17.5)
+    - RNReanimated/reanimated (= 3.16.7)
+    - RNReanimated/worklets (= 3.16.7)
     - Yoga
-  - RNReanimated/reanimated (3.17.5):
+  - RNReanimated/reanimated (3.16.7):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2001,9 +1997,7 @@ PODS:
     - React-Fabric
     - React-featureflags
     - React-graphics
-    - React-hermes
     - React-ImageManager
-    - React-jsi
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -2011,9 +2005,9 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNReanimated/reanimated/apple (= 3.17.5)
+    - RNReanimated/reanimated/apple (= 3.16.7)
     - Yoga
-  - RNReanimated/reanimated/apple (3.17.5):
+  - RNReanimated/reanimated/apple (3.16.7):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2025,9 +2019,7 @@ PODS:
     - React-Fabric
     - React-featureflags
     - React-graphics
-    - React-hermes
     - React-ImageManager
-    - React-jsi
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -2036,7 +2028,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNReanimated/worklets (3.17.5):
+  - RNReanimated/worklets (3.16.7):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2048,33 +2040,7 @@ PODS:
     - React-Fabric
     - React-featureflags
     - React-graphics
-    - React-hermes
     - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - RNReanimated/worklets/apple (= 3.17.5)
-    - Yoga
-  - RNReanimated/worklets/apple (3.17.5):
-    - DoubleConversion
-    - glog
-    - hermes-engine
-    - RCT-Folly (= 2024.10.14.00)
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-hermes
-    - React-ImageManager
-    - React-jsi
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -2143,7 +2109,7 @@ DEPENDENCIES:
   - "ExpoNativeExtensions (from `../node_modules/.pnpm/@privy-io+expo-native-extensions@0.0.3_expo@52.0.46_@babel+core@7.26.10_@babel+preset-e_38b179c97bda78a23711859654a3efff/node_modules/@privy-io/expo-native-extensions/ios`)"
   - "ExpoSecureStore (from `../node_modules/.pnpm/expo-secure-store@14.0.1_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@bab_bd7cb706799dfc2ba791ec41dd0c3a7f/node_modules/expo-secure-store/ios`)"
   - "ExpoSplashScreen (from `../node_modules/.pnpm/expo-splash-screen@0.29.24_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@b_6d71fe590ab7a8cec3f7f95db955389e/node_modules/expo-splash-screen/ios`)"
-  - "ExpoSystemUI (from `../node_modules/.pnpm/expo-system-ui@5.0.7_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+c_be17c06bc53a861d1489a23b67f9294a/node_modules/expo-system-ui/ios`)"
+  - "ExpoSystemUI (from `../node_modules/.pnpm/expo-system-ui@4.0.9_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+c_9dbbdeef74de5b3ce5fc227f0d3cb65d/node_modules/expo-system-ui/ios`)"
   - "ExpoWebBrowser (from `../node_modules/.pnpm/expo-web-browser@14.0.2_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babe_a46ec84508806d83069bb81a9c80fa6f/node_modules/expo-web-browser/ios`)"
   - "EXUpdatesInterface (from `../node_modules/.pnpm/expo-updates-interface@1.0.0_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9__e3f635b6529441e269ce5bfe7f67065e/node_modules/expo-updates-interface/ios`)"
   - "fast_float (from `../node_modules/.pnpm/react-native@0.76.9_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+core@7.26.10__@_a88b799d893e2b696afdc8506722021f/node_modules/react-native/third-party-podspecs/fast_float.podspec`)"
@@ -2214,7 +2180,6 @@ DEPENDENCIES:
   - "React-utils (from `../node_modules/.pnpm/react-native@0.76.9_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+core@7.26.10__@_a88b799d893e2b696afdc8506722021f/node_modules/react-native/ReactCommon/react/utils`)"
   - ReactCodegen (from `build/generated/ios`)
   - "ReactCommon/turbomodule/core (from `../node_modules/.pnpm/react-native@0.76.9_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+core@7.26.10__@_a88b799d893e2b696afdc8506722021f/node_modules/react-native/ReactCommon`)"
-  - "ReactNativePasskeys (from `../node_modules/.pnpm/react-native-passkeys@0.3.1_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@_ea188fbc8320d97123ca06ed36ff277c/node_modules/react-native-passkeys/ios`)"
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNKeychain (from `../node_modules/react-native-keychain`)
@@ -2288,7 +2253,7 @@ EXTERNAL SOURCES:
   ExpoSplashScreen:
     :path: "../node_modules/.pnpm/expo-splash-screen@0.29.24_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@b_6d71fe590ab7a8cec3f7f95db955389e/node_modules/expo-splash-screen/ios"
   ExpoSystemUI:
-    :path: "../node_modules/.pnpm/expo-system-ui@5.0.7_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+c_be17c06bc53a861d1489a23b67f9294a/node_modules/expo-system-ui/ios"
+    :path: "../node_modules/.pnpm/expo-system-ui@4.0.9_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+c_9dbbdeef74de5b3ce5fc227f0d3cb65d/node_modules/expo-system-ui/ios"
   ExpoWebBrowser:
     :path: "../node_modules/.pnpm/expo-web-browser@14.0.2_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babe_a46ec84508806d83069bb81a9c80fa6f/node_modules/expo-web-browser/ios"
   EXUpdatesInterface:
@@ -2426,8 +2391,6 @@ EXTERNAL SOURCES:
     :path: build/generated/ios
   ReactCommon:
     :path: "../node_modules/.pnpm/react-native@0.76.9_@babel+core@7.26.10_@babel+preset-env@7.26.9_@babel+core@7.26.10__@_a88b799d893e2b696afdc8506722021f/node_modules/react-native/ReactCommon"
-  ReactNativePasskeys:
-    :path: "../node_modules/.pnpm/react-native-passkeys@0.3.1_expo@52.0.46_@babel+core@7.26.10_@babel+preset-env@7.26.9_@_ea188fbc8320d97123ca06ed36ff277c/node_modules/react-native-passkeys/ios"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNGestureHandler:
@@ -2472,7 +2435,7 @@ SPEC CHECKSUMS:
   ExpoNativeExtensions: ac2ffff99e3480446becd430cb2febe295d72ea4
   ExpoSecureStore: 9a3665d7161dd1031be386e278bffd623658f316
   ExpoSplashScreen: 399ee9f85b6c8a61b965e13a1ecff8384db591c2
-  ExpoSystemUI: 82c970cf8495449698e7343b4f78a0d04bcec9ee
+  ExpoSystemUI: b82a45cf0f6a4fa18d07c46deba8725dd27688b4
   ExpoWebBrowser: a212e6b480d8857d3e441fba51e0c968333803b3
   EXUpdatesInterface: 7c977640bdd8b85833c19e3959ba46145c5719db
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
@@ -2542,11 +2505,10 @@ SPEC CHECKSUMS:
   React-utils: 59c5bbbc0e72be22c9d6eceb40afadf9be872819
   ReactCodegen: 1a3bec85e09c797e0c016d95de69ce9cd81920d2
   ReactCommon: b2eb96a61b826ff327a773a74357b302cf6da678
-  ReactNativePasskeys: f11a9ff48d8066f3c60e88b38ed10e8f82b77882
-  RNCAsyncStorage: b6410dead2732b5c72a7fdb1ecb5651bbcf4674b
-  RNGestureHandler: 3c5104089cbd39bc37b009d24bc56cf50da378a2
+  RNCAsyncStorage: aa75595c1aefa18f868452091fa0c411a516ce11
+  RNGestureHandler: 2dd124adb171aab16629e9387cf1830957d242c2
   RNKeychain: f9ec38e10a5f4dc6549534dd7363f852d4865c16
-  RNReanimated: 6871367c18c5bca5e77044fdda93ad0b1859057a
+  RNReanimated: 14a1d6f359f3ae8c2e087fe180cf0cfe3709ce92
   RNScreens: ad2d0cfb3f15c9ed56ffb43651366ec0dcd70c36
   RNSVG: 8542aa11770b27563714bbd8494a8436385fc85f
   SDWebImage: f84b0feeb08d2d11e6a9b843cb06d75ebf5b8868

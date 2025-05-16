@@ -82,6 +82,10 @@ import RightGrid from './login-elements-right/grid-right.svg';
 import RightZigzag from './login-elements-right/zigzag-right.svg';
 import RightEllipse from './login-elements-right/ellipse-right.svg';
 
+// Add imports for our new Holdings icons
+import HoldingsIcon from '../svg/HoldingsIcon';
+import HoldingsIconSelected from '../svg/HoldingsIconSelected';
+
 export default {
   SolanaDot,
   SplashText,
@@ -165,5 +169,7 @@ export default {
   RightBoomerang,
   RightGrid,
   RightZigzag,
-  RightEllipse
+  RightEllipse,
+  HoldingsIcon,
+  HoldingsIconSelected
 };

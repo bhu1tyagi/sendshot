@@ -1,10 +1,11 @@
-import React, {useRef, useEffect} from 'react';
-import {Animated, View, StyleSheet} from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { Animated, View, StyleSheet } from 'react-native';
+import COLORS from '@/assets/colors';
 
 type AnimatedTabIconProps = {
   focused: boolean;
-  icon: React.ComponentType<{ width: number; height: number }>;
-  iconSelected: React.ComponentType<{ width: number; height: number }>;
+  icon: React.ComponentType<{ width: number; height: number; color?: string }>;
+  iconSelected: React.ComponentType<{ width: number; height: number; color?: string }>;
   size: number;
   style?: object;
 };
@@ -34,8 +35,12 @@ function AnimatedTabIcon({
   const IconComponent = focused ? IconSelected : IconDefault;
 
   return (
-    <Animated.View style={[focused ? style : null, {transform: [{scale}]}]}>
-      <IconComponent width={size} height={size} />
+    <Animated.View style={[focused ? style : null, { transform: [{ scale }] }]}>
+      <IconComponent
+        width={size}
+        height={size}
+        color={focused ? COLORS.white : COLORS.greyMid}
+      />
     </Animated.View>
   );
 }
