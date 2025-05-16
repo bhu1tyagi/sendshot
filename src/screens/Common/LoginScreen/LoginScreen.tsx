@@ -10,7 +10,6 @@ import styles from './LoginScreen.styles';
 import { useDispatch, useSelector } from 'react-redux';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import EmbeddedWalletAuth from '@/modules/walletProviders/components/wallet/EmbeddedWallet';
-import TurnkeyWalletAuth from '@/modules/walletProviders/components/turnkey/TurnkeyWallet';
 import { loginSuccess } from '@/shared/state/auth/reducer';
 import { RootState } from '@/shared/state/store';
 import { useCustomization } from '@/config/CustomizationProvider';
@@ -470,10 +469,7 @@ export default function LoginScreen() {
 
   const renderAuthComponent = () => {
     switch (authConfig.provider) {
-      case 'turnkey':
-        return <TurnkeyWalletAuth onWalletConnected={handleWalletConnected} />;
       case 'privy':
-      case 'dynamic':
       default:
         return <EmbeddedWalletAuth onWalletConnected={handleWalletConnected} />;
     }

@@ -10,10 +10,7 @@ import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
 
 import AnimatedTabIcon from './AnimatedTabIcon';
-import FeedScreen from '@/screens/SampleUI/Threads/FeedScreen/FeedScreen';
-import SwapScreen from '@/screens/SampleUI/Swap';
 import ModuleScreen from '@/screens/Common/LaunhcModulesScreen/LaunchModules';
-import { ChatListScreen } from '@/screens/SampleUI/Chat';
 import HoldingsScreen from '@/screens/SampleUI/Holdings/HoldingsScreen';
 import TokenFeedScreen from '@/screens/SampleUI/Tokens/TokenFeedScreen';
 
@@ -77,31 +74,6 @@ export default function MainTabs() {
       useNativeDriver: true,
     }).start();
   };
-
-  // Create a stable component that doesn't rerender on menu toggle         
-  const StableFeedComponent = React.useMemo(() => {
-    // This component is created once and captured in useMemo
-    // It will only update when platformSwitchKey changes
-    const Component = () => {
-      switch (currentPlatform) {
-        case 'threads':
-          return <FeedScreen key={`threads-${refreshKey}`} />;
-        case 'insta':
-          return <FeedScreen key={`insta-${refreshKey}`} />;
-        case 'chats':
-          // Navigate to ChatListScreen instead of showing ChatScreen directly
-          React.useEffect(() => {
-            navigation.navigate('ChatListScreen');
-          }, []);
-          // Return empty view as navigation will handle the rendering
-          return <View style={{ flex: 1 }} />;
-        default:
-          return <FeedScreen key={`threads-${refreshKey}`} />;
-      }
-    };
-
-    return Component;
-  }, [currentPlatform, refreshKey, navigation]);
 
   // Calculate transformations for the menu with smoother curves
   const menuTranslateY = menuAnimation.interpolate({

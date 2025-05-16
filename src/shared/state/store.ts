@@ -1,11 +1,8 @@
 import {configureStore} from '@reduxjs/toolkit';
-import threadReducer from './thread/reducer';
 import authReducer from './auth/reducer';
 import transactionReducer from './transaction/reducer';
 import usersReducer from './users/reducer';
 import notificationReducer from './notification/reducer';
-import profileReducer from './profile/reducer';
-import chatReducer from './chat/slice';
 
 // Redux persist imports
 import { persistStore, persistReducer } from 'redux-persist';
@@ -22,13 +19,10 @@ const persistConfig = {
 
 // Combine all reducers
 const rootReducer = combineReducers({
-  thread: threadReducer,
   auth: authReducer,
   transaction: transactionReducer,
   users: usersReducer,
   notification: notificationReducer,
-  profile: profileReducer,
-  chat: chatReducer,
 });
 
 // Create persisted reducer (only for auth)

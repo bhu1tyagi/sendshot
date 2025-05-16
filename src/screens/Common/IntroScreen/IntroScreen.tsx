@@ -7,7 +7,6 @@ import COLORS from '@/assets/colors';
 import Logo from '@/assets/svgs/logo.svg';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/shared/state/store';
-import { getDynamicClient } from '@/modules/walletProviders/services/walletProviders/dynamic';
 
 export default function IntroScreen() {
   const navigation = useAppNavigation();
@@ -24,34 +23,6 @@ export default function IntroScreen() {
         navigation.navigate('MainTabs' as never);
         setIsCheckingAuth(false);
         return;
-      }
-      
-      // Only if Redux state shows not logged in, check provider-specific auth
-      try {
-        // Check if user is already authenticated using Dynamic client
-        const client = getDynamicClient();
-        const authUser = client?.auth?.authenticatedUser;
-
-        if (authUser) {
-          console.log('User authenticated via Dynamic client, navigating to MainTabs');
-          navigation.navigate('MainTabs' as never);
-          setIsCheckingAuth(false);
-        } else {
-          console.log('User not authenticated, navigating to LoginOptions');
-          // Only add a short delay for non-authenticated users to see splash
-          setTimeout(() => {
-            navigation.navigate('LoginOptions');
-            setIsCheckingAuth(false);
-          }, 1000); 
-        }
-      } catch (e) {
-        console.log('Dynamic client not initialized yet or error:', e);
-        // If there's an error with provider check but we already know we're not logged in
-        // via Redux state, go to login
-        setTimeout(() => {
-          navigation.navigate('LoginOptions');
-          setIsCheckingAuth(false);
-        }, 1000);
       }
     };
 
