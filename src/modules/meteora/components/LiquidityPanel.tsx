@@ -192,39 +192,11 @@ export default function LiquidityPanel({
         return (
             <ScrollView style={styles.positionsList}>
                 {positions.map((position) => (
-                    <View key={position.id} style={styles.positionCard}>
-                        <View style={styles.positionHeader}>
-                            <Text style={styles.positionTitle}>
-                                {position.tokenA.substring(0, 4)}...{position.tokenA.substring(position.tokenA.length - 4)} /
-                                {position.tokenB.substring(0, 4)}...{position.tokenB.substring(position.tokenB.length - 4)}
-                            </Text>
-                            <Text style={styles.positionDate}>Created: {formatDate(position.createdAt)}</Text>
-                        </View>
-
-                        <View style={styles.positionDetails}>
-                            <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Token A:</Text>
-                                <Text style={styles.detailValue}>{position.amountA}</Text>
-                            </View>
-                            <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Token B:</Text>
-                                <Text style={styles.detailValue}>{position.amountB}</Text>
-                            </View>
-                            <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Liquidity:</Text>
-                                <Text style={styles.detailValue}>{position.liquidityAmount}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.positionActions}>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <Text style={styles.actionButtonText}>Remove</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <Text style={styles.actionButtonText}>Add More</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    <PositionCard
+                        key={`position-${position.id || position.poolAddress}`}
+                        position={position}
+                        onRemoveLiquidity={handleRemoveLiquidity}
+                    />
                 ))}
             </ScrollView>
         );
@@ -242,20 +214,11 @@ export default function LiquidityPanel({
                     contentContainerStyle={styles.poolsScrollViewContent}
                 >
                     {pools.map((pool, index) => (
-                        <TouchableOpacity
-                            key={pool.address}
-                            style={[
-                                styles.poolCard,
-                                selectedPoolIndex === index && styles.poolCardSelected
-                            ]}
-                            onPress={() => setSelectedPoolIndex(index)}
-                        >
-                            <Text style={styles.poolName}>{pool.name}</Text>
-                            <Text style={styles.poolStats}>
-                                Vol: ${parseFloat(pool.volume24h).toLocaleString()}
-                            </Text>
-                            <Text style={styles.poolFee}>Fee: {pool.fee}%</Text>
-                        </TouchableOpacity>
+                        <PoolCard
+                            key={`pool-${pool.address || index}`}
+                            pool={pool}
+                            onAddLiquidity={handleAddLiquidity}
+                        />
                     ))}
                 </ScrollView>
 

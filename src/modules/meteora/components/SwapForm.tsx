@@ -452,21 +452,14 @@ export default function SwapForm({
                     <View style={styles.slippageButtonContainer}>
                         {[0.1, 0.5, 1, 2].map((value) => (
                             <TouchableOpacity
-                                key={value}
+                                key={`slippage-${value}`}
                                 style={[
                                     styles.slippageButton,
-                                    slippage === value && styles.slippageButtonActive
+                                    slippage === value && styles.slippageButtonSelected,
                                 ]}
                                 onPress={() => handleSlippageChange(value)}
                             >
-                                <Text
-                                    style={[
-                                        styles.slippageButtonText,
-                                        slippage === value && styles.slippageButtonTextActive
-                                    ]}
-                                >
-                                    {value}%
-                                </Text>
+                                <Text style={styles.slippageButtonText}>{value}%</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -658,7 +651,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.borderDarkColor,
     },
-    slippageButtonActive: {
+    slippageButtonSelected: {
         backgroundColor: COLORS.brandPrimary,
         borderColor: COLORS.brandPrimary,
     },
@@ -666,10 +659,6 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         fontSize: TYPOGRAPHY.size.sm,
         fontWeight: TYPOGRAPHY.weights.medium,
-    },
-    slippageButtonTextActive: {
-        color: COLORS.black,
-        fontWeight: TYPOGRAPHY.weights.semiBold,
     },
     errorContainer: {
         marginVertical: 8,

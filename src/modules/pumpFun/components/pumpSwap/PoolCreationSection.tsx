@@ -6,11 +6,13 @@ import {
     TextInput,
     ActivityIndicator,
     TouchableOpacity,
-    Alert
+    Alert,
+    Switch
 } from 'react-native';
 import { useWallet } from '../../../walletProviders/hooks/useWallet';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { createPool } from '../../services/pumpSwapService'; // <--- calls the server only
+import { createPool } from '../../services/pumpSwapService';
+import { createPoolAndBuy, createTokenWithCurve } from '../../../meteora/services/meteoraService'; // Import createTokenWithCurve
 import { TokenInfo } from '@/modules/dataModule';
 import SelectTokenModal from '@/screens/SampleUI/Swap/SelectTokenModal';
 
@@ -67,6 +69,15 @@ export function PoolCreationSection({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const [buyOnCreate, setBuyOnCreate] = useState(false); // New state for the toggle
+    const [buyAmount, setBuyAmount] = useState(''); // New state for the buy amount
+    const [configAddress, setConfigAddress] = useState('');  // New state for storing config address
+    const [tokenName, setTokenName] = useState(''); // New state for token name
+    const [tokenSymbol, setTokenSymbol] = useState(''); // New state for token symbol
+    const [useBondingCurve, setUseBondingCurve] = useState(false); // New state for bonding curve toggle
+    const [initialMarketCap, setInitialMarketCap] = useState('10'); // Initial market cap in USD
+    const [targetMarketCap, setTargetMarketCap] = useState('1000'); // Target market cap in USD
+    const [tokenSupply, setTokenSupply] = useState('1000000000'); // Total token supply
 
     // Token selection modal states
     const [showBaseTokenModal, setShowBaseTokenModal] = useState(false);
@@ -123,6 +134,164 @@ export function PoolCreationSection({
         }
     }, [baseMint, quoteMint, error]);
 
+    // Toggle handler for buyOnCreate
+    const toggleBuyOnCreate = useCallback(() => {
+        setBuyOnCreate(!buyOnCreate);
+    }, [buyOnCreate]);
+
+    // Toggle handler for useBondingCurve
+    const toggleUseBondingCurve = useCallback(() => {
+        setUseBondingCurve(!useBondingCurve);
+        // If turning on bonding curve, set quote token to SOL
+        if (!useBondingCurve) {
+            setQuoteMint(SOL_MINT);
+            setQuoteToken({
+                address: SOL_MINT,
+                symbol: 'SOL',
+                name: 'Solana',
+                decimals: 9,
+                logoURI: '',
+            });
+        }
+    }, [useBondingCurve]);
+
+    // Perform create token with bonding curve
+    const handleCreateTokenWithCurve = useCallback(async () => {
+        if (!connected || !solanaWallet) return;
+
+        const userAddress = address || '';
+        if (!userAddress) {
+            setError('No wallet address found');
+            return;
+        }
+
+        // Validate inputs
+        if (!tokenName || tokenName.trim() === '') {
+            setError('Please enter a token name');
+            return;
+        }
+
+        if (!tokenSymbol || tokenSymbol.trim() === '') {
+            setError('Please enter a token symbol');
+            return;
+        }
+
+        const initialMarketCapValue = parseFloat(initialMarketCap);
+        if (isNaN(initialMarketCapValue) || initialMarketCapValue <= 0) {
+            setError('Please enter a valid initial market cap');
+            return;
+        }
+
+        const targetMarketCapValue = parseFloat(targetMarketCap);
+        if (isNaN(targetMarketCapValue) || targetMarketCapValue <= initialMarketCapValue) {
+            setError('Target market cap must be greater than initial market cap');
+            return;
+        }
+
+        const tokenSupplyValue = parseInt(tokenSupply);
+        if (isNaN(tokenSupplyValue) || tokenSupplyValue <= 0) {
+            setError('Please enter a valid token supply');
+            return;
+        }
+
+        const buyAmountValue = buyOnCreate ? parseFloat(buyAmount) : 0;
+        if (buyOnCreate && (isNaN(buyAmountValue) || buyAmountValue <= 0)) {
+            setError('Please enter a valid buy amount');
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            setError(null);
+
+            // Check if the user likely has enough SOL balance
+            let warningMessage = '';
+            try {
+                const solBalance = await connection.getBalance(new PublicKey(userAddress));
+                const solBalanceInSol = solBalance / 1_000_000_000;
+
+                // Creating a pool requires at least ~0.03 SOL for account rent
+                if (solBalanceInSol < 0.05) {
+                    warningMessage = `\n\nWARNING: Your wallet has only ${solBalanceInSol.toFixed(6)} SOL, which may not be enough to cover the network fees required to create a pool. The transaction might fail.`;
+                }
+            } catch (balanceError) {
+                console.log('Could not check SOL balance:', balanceError);
+            }
+
+            // Confirm with user before proceeding
+            Alert.alert(
+                'Create Token with Bonding Curve',
+                `You are about to create a new token:\n\n` +
+                `Name: ${tokenName}\n` +
+                `Symbol: ${tokenSymbol}\n` +
+                `Supply: ${parseInt(tokenSupply).toLocaleString()}\n` +
+                `Initial Market Cap: $${initialMarketCapValue}\n` +
+                `Target Market Cap: $${targetMarketCapValue}` +
+                (buyOnCreate ? `\n\nYou will also buy tokens with ${buyAmountValue} SOL` : '') +
+                warningMessage +
+                `\n\nContinue?`,
+                [
+                    {
+                        text: 'Cancel',
+                        style: 'cancel',
+                        onPress: () => {
+                            setIsLoading(false);
+                        }
+                    },
+                    {
+                        text: 'Create Token',
+                        onPress: async () => {
+                            try {
+                                setStatusMessage('Creating token with bonding curve...');
+
+                                const result = await createTokenWithCurve(
+                                    {
+                                        tokenName,
+                                        tokenSymbol,
+                                        initialMarketCap: initialMarketCapValue,
+                                        targetMarketCap: targetMarketCapValue,
+                                        tokenSupply: tokenSupplyValue,
+                                        buyAmount: buyOnCreate ? buyAmountValue : undefined
+                                    },
+                                    connection,
+                                    solanaWallet,
+                                    (msg) => setStatusMessage(msg)
+                                );
+
+                                setStatusMessage(`Token created! Mint address: ${result.baseMintAddress}, TX: ${result.txId}`);
+                                // Reset form fields
+                                setTokenName('');
+                                setTokenSymbol('');
+                                setBuyAmount('');
+                            } catch (err) {
+                                setError(err instanceof Error ? err.message : 'Failed to create token');
+                                setStatusMessage(null);
+                            } finally {
+                                setIsLoading(false);
+                            }
+                        }
+                    }
+                ]
+            );
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create token');
+            setStatusMessage(null);
+            setIsLoading(false);
+        }
+    }, [
+        connected,
+        solanaWallet,
+        address,
+        tokenName,
+        tokenSymbol,
+        initialMarketCap,
+        targetMarketCap,
+        tokenSupply,
+        buyOnCreate,
+        buyAmount,
+        connection
+    ]);
+
     // Perform create pool transaction
     const handleCreatePool = useCallback(async () => {
         if (!connected || !solanaWallet) return;
@@ -146,6 +315,21 @@ export function PoolCreationSection({
 
         if (baseMint === quoteMint) {
             setError('Base and quote tokens cannot be the same');
+            return;
+        }
+
+        if (buyOnCreate && (!buyAmount || parseFloat(buyAmount) <= 0)) {
+            setError('Please enter a valid buy amount');
+            return;
+        }
+
+        if (!tokenName || tokenName.trim() === '') {
+            setError('Please enter a token name');
+            return;
+        }
+
+        if (!tokenSymbol || tokenSymbol.trim() === '') {
+            setError('Please enter a token symbol');
             return;
         }
 
@@ -185,14 +369,20 @@ export function PoolCreationSection({
                 console.log('Could not check SOL balance:', balanceError);
             }
 
+            // Determine message based on whether we're buying on create
+            const actionMessage = buyOnCreate
+                ? `You are about to create a new pool with:\n\n` +
+                `${finalBaseAmount} ${baseToken.symbol} and ${finalQuoteAmount} ${quoteToken.symbol}\n\n` +
+                `Initial price: 1 ${baseToken.symbol} = ${displayPrice} ${quoteToken.symbol}\n\n` +
+                `AND immediately buy tokens with ${buyAmount} ${quoteToken.symbol}`
+                : `You are about to create a new pool with:\n\n` +
+                `${finalBaseAmount} ${baseToken.symbol} and ${finalQuoteAmount} ${quoteToken.symbol}\n\n` +
+                `Initial price: 1 ${baseToken.symbol} = ${displayPrice} ${quoteToken.symbol}`;
+
             // Confirm with user before proceeding
             Alert.alert(
                 'Create Pool',
-                `You are about to create a new pool with:\n\n` +
-                `${finalBaseAmount} ${baseToken.symbol} and ${finalQuoteAmount} ${quoteToken.symbol}\n\n` +
-                `Initial price: 1 ${baseToken.symbol} = ${displayPrice} ${quoteToken.symbol}` +
-                warningMessage +
-                `\n\nContinue?`,
+                actionMessage + warningMessage + `\n\nContinue?`,
                 [
                     {
                         text: 'Cancel',
@@ -207,23 +397,65 @@ export function PoolCreationSection({
                             try {
                                 setStatusMessage('Preparing transaction...');
 
-                                // Use exact numeric values to avoid precision issues and ensure minimums
-                                const signature = await createPool({
-                                    index: DEFAULT_INDEX,
-                                    baseMint: baseMint,
-                                    quoteMint: quoteMint,
-                                    baseAmount: finalBaseAmount,
-                                    quoteAmount: finalQuoteAmount,
-                                    userPublicKey: new PublicKey(userAddress),
-                                    connection,
-                                    solanaWallet,
-                                    onStatusUpdate: (msg) => setStatusMessage(msg),
-                                });
+                                if (buyOnCreate) {
+                                    // Use createPoolAndBuy function
+                                    const buyAmountFloat = parseFloat(buyAmount);
+                                    if (isNaN(buyAmountFloat) || buyAmountFloat <= 0) {
+                                        throw new Error('Invalid buy amount');
+                                    }
 
-                                setStatusMessage(`Pool created! Tx signature: ${signature}`);
+                                    // Need to first ensure we have a config address, this is a placeholder
+                                    // In a real implementation, you would either:
+                                    // 1. First create a config and then use that address
+                                    // 2. Or use an existing config address
+                                    if (!configAddress || !isValidPublicKey(configAddress)) {
+                                        setError('No valid config address. Please create a config first.');
+                                        setIsLoading(false);
+                                        return;
+                                    }
+
+                                    const result = await createPoolAndBuy(
+                                        {
+                                            createPoolParam: {
+                                                quoteMint: quoteMint,
+                                                config: configAddress,
+                                                baseTokenType: 0, // SPL token
+                                                quoteTokenType: 0, // SPL token
+                                                name: tokenName,
+                                                symbol: tokenSymbol,
+                                                uri: ""
+                                            },
+                                            buyAmount: buyAmountFloat.toString(),
+                                            minimumAmountOut: "0", // No slippage protection for initial buy
+                                            referralTokenAccount: null
+                                        },
+                                        connection,
+                                        solanaWallet,
+                                        (msg) => setStatusMessage(msg)
+                                    );
+
+                                    setStatusMessage(`Pool created and tokens purchased! Tx signature: ${result.txId}`);
+                                } else {
+                                    // Use the original createPool function
+                                    const signature = await createPool({
+                                        index: DEFAULT_INDEX,
+                                        baseMint: baseMint,
+                                        quoteMint: quoteMint,
+                                        baseAmount: finalBaseAmount,
+                                        quoteAmount: finalQuoteAmount,
+                                        userPublicKey: new PublicKey(userAddress),
+                                        connection,
+                                        solanaWallet,
+                                        onStatusUpdate: (msg) => setStatusMessage(msg),
+                                    });
+
+                                    setStatusMessage(`Pool created! Tx signature: ${signature}`);
+                                }
+
                                 // Reset amounts but keep mint addresses
                                 setBaseAmount('');
                                 setQuoteAmount('');
+                                setBuyAmount('');
                                 setInitialPrice(null);
                             } catch (err) {
                                 setError(err instanceof Error ? err.message : 'Failed to create pool');
@@ -251,7 +483,12 @@ export function PoolCreationSection({
         baseToken.symbol,
         quoteToken.symbol,
         isValidPublicKey,
-        connection
+        connection,
+        buyOnCreate,
+        buyAmount,
+        configAddress,
+        tokenName,
+        tokenSymbol
     ]);
 
     if (!connected) {
@@ -268,78 +505,204 @@ export function PoolCreationSection({
         <View style={styles.container}>
             <Text style={styles.sectionTitle}>Create a New Pool</Text>
 
-            {/* Base Token Selection */}
-            <Text style={styles.inputLabel}>Base Token</Text>
-            <TouchableOpacity
-                style={styles.tokenSelector}
-                onPress={() => setShowBaseTokenModal(true)}
-                disabled={isLoading}
-            >
-                <View style={styles.tokenInfo}>
-                    <Text style={styles.tokenSymbol}>{baseToken.symbol}</Text>
-                    <Text style={styles.tokenName}>{baseToken.name}</Text>
-                </View>
-                <Text style={styles.tokenAddress}>{baseToken.address.slice(0, 4)}...{baseToken.address.slice(-4)}</Text>
-            </TouchableOpacity>
+            {/* Creation Mode Toggle */}
+            <View style={styles.toggleContainer}>
+                <Text style={styles.toggleLabel}>Use Bonding Curve (Meteora DBC)</Text>
+                <Switch
+                    value={useBondingCurve}
+                    onValueChange={toggleUseBondingCurve}
+                    disabled={isLoading}
+                    trackColor={{ false: '#767577', true: '#6E56CF' }}
+                    thumbColor={useBondingCurve ? '#4C3D9F' : '#f4f3f4'}
+                />
+            </View>
 
-            {/* Quote Token Selection */}
-            <Text style={styles.inputLabel}>Quote Token</Text>
-            <TouchableOpacity
-                style={styles.tokenSelector}
-                onPress={() => setShowQuoteTokenModal(true)}
-                disabled={isLoading}
-            >
-                <View style={styles.tokenInfo}>
-                    <Text style={styles.tokenSymbol}>{quoteToken.symbol}</Text>
-                    <Text style={styles.tokenName}>{quoteToken.name}</Text>
-                </View>
-                <Text style={styles.tokenAddress}>{quoteToken.address.slice(0, 4)}...{quoteToken.address.slice(-4)}</Text>
-            </TouchableOpacity>
-
-            {/* Base Amount */}
-            <Text style={styles.inputLabel}>Base Token Amount ({baseToken.symbol})</Text>
+            {/* Token Name and Symbol */}
+            <Text style={styles.inputLabel}>Token Name</Text>
             <TextInput
                 style={styles.input}
-                value={baseAmount}
-                onChangeText={handleBaseAmountChange}
-                placeholder={`Enter ${baseToken.symbol} amount`}
-                keyboardType="numeric"
+                value={tokenName}
+                onChangeText={setTokenName}
+                placeholder="Enter token name (e.g. My Token)"
                 editable={!isLoading}
             />
 
-            {/* Quote Amount */}
-            <Text style={styles.inputLabel}>Quote Token Amount ({quoteToken.symbol})</Text>
+            <Text style={styles.inputLabel}>Token Symbol</Text>
             <TextInput
                 style={styles.input}
-                value={quoteAmount}
-                onChangeText={handleQuoteAmountChange}
-                placeholder={`Enter ${quoteToken.symbol} amount`}
-                keyboardType="numeric"
+                value={tokenSymbol}
+                onChangeText={setTokenSymbol}
+                placeholder="Enter token symbol (e.g. MYTKN)"
                 editable={!isLoading}
             />
 
-            {/* Show initial price if both amounts > 0 */}
-            {initialPrice !== null && (
-                <View style={styles.priceContainer}>
-                    <Text style={styles.priceLabel}>Initial Price:</Text>
-                    <Text style={styles.priceValue}>
-                        1 {baseToken.symbol} = {initialPrice.toFixed(6)} {quoteToken.symbol}
-                    </Text>
-                </View>
+            {useBondingCurve ? (
+                // Bonding Curve Parameters
+                <>
+                    <Text style={styles.inputLabel}>Initial Market Cap (USD)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={initialMarketCap}
+                        onChangeText={setInitialMarketCap}
+                        placeholder="Initial market cap in USD (e.g. 10)"
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+
+                    <Text style={styles.inputLabel}>Target Market Cap (USD)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={targetMarketCap}
+                        onChangeText={setTargetMarketCap}
+                        placeholder="Target market cap in USD (e.g. 1000)"
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+
+                    <Text style={styles.inputLabel}>Token Supply</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={tokenSupply}
+                        onChangeText={setTokenSupply}
+                        placeholder="Total token supply (e.g. 1000000000)"
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+                </>
+            ) : (
+                // Standard Pool Parameters
+                <>
+                    {/* Config Address */}
+                    <Text style={styles.inputLabel}>Config Address</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={configAddress}
+                        onChangeText={setConfigAddress}
+                        placeholder="Enter Meteora DBC config address"
+                        editable={!isLoading}
+                    />
+
+                    {/* Base Token Selection */}
+                    <Text style={styles.inputLabel}>Base Token</Text>
+                    <TouchableOpacity
+                        style={styles.tokenSelector}
+                        onPress={() => setShowBaseTokenModal(true)}
+                        disabled={isLoading}
+                    >
+                        <View style={styles.tokenInfo}>
+                            <Text style={styles.tokenSymbol}>{baseToken.symbol}</Text>
+                            <Text style={styles.tokenName}>{baseToken.name}</Text>
+                        </View>
+                        <Text style={styles.tokenAddress}>{baseToken.address.slice(0, 4)}...{baseToken.address.slice(-4)}</Text>
+                    </TouchableOpacity>
+
+                    {/* Quote Token Selection */}
+                    <Text style={styles.inputLabel}>Quote Token</Text>
+                    <TouchableOpacity
+                        style={styles.tokenSelector}
+                        onPress={() => setShowQuoteTokenModal(true)}
+                        disabled={isLoading}
+                    >
+                        <View style={styles.tokenInfo}>
+                            <Text style={styles.tokenSymbol}>{quoteToken.symbol}</Text>
+                            <Text style={styles.tokenName}>{quoteToken.name}</Text>
+                        </View>
+                        <Text style={styles.tokenAddress}>{quoteToken.address.slice(0, 4)}...{quoteToken.address.slice(-4)}</Text>
+                    </TouchableOpacity>
+
+                    {/* Base Amount */}
+                    <Text style={styles.inputLabel}>Base Token Amount ({baseToken.symbol})</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={baseAmount}
+                        onChangeText={handleBaseAmountChange}
+                        placeholder={`Enter ${baseToken.symbol} amount`}
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+
+                    {/* Quote Amount */}
+                    <Text style={styles.inputLabel}>Quote Token Amount ({quoteToken.symbol})</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={quoteAmount}
+                        onChangeText={handleQuoteAmountChange}
+                        placeholder={`Enter ${quoteToken.symbol} amount`}
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+
+                    {/* Show initial price if both amounts > 0 */}
+                    {initialPrice !== null && (
+                        <View style={styles.priceContainer}>
+                            <Text style={styles.priceLabel}>Initial Price:</Text>
+                            <Text style={styles.priceValue}>
+                                1 {baseToken.symbol} = {initialPrice.toFixed(6)} {quoteToken.symbol}
+                            </Text>
+                        </View>
+                    )}
+                </>
+            )}
+
+            {/* Buy on create toggle */}
+            <View style={styles.toggleContainer}>
+                <Text style={styles.toggleLabel}>Buy tokens when creating pool</Text>
+                <Switch
+                    value={buyOnCreate}
+                    onValueChange={toggleBuyOnCreate}
+                    disabled={isLoading}
+                    trackColor={{ false: '#767577', true: '#6E56CF' }}
+                    thumbColor={buyOnCreate ? '#4C3D9F' : '#f4f3f4'}
+                />
+            </View>
+
+            {/* Buy amount (only shown when toggle is on) */}
+            {buyOnCreate && (
+                <>
+                    <Text style={styles.inputLabel}>Amount to Buy ({useBondingCurve ? 'SOL' : quoteToken.symbol})</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={buyAmount}
+                        onChangeText={setBuyAmount}
+                        placeholder={`Enter amount of ${useBondingCurve ? 'SOL' : quoteToken.symbol} to spend`}
+                        keyboardType="numeric"
+                        editable={!isLoading}
+                    />
+                </>
             )}
 
             {/* Pool creation info */}
             <View style={styles.infoContainer}>
-                <Text style={styles.infoTextDetail}>
-                    Creating a pool allows you to provide liquidity between two tokens and earn fees from trades.
-                </Text>
-                <Text style={styles.infoTextDetail}>
-                    Note: You must have both tokens in your wallet to create a pool.
-                </Text>
-                <Text style={styles.infoTextDetail}>
-                    <Text style={{ fontWeight: 'bold' }}>Important:</Text> The minimum
-                    amount required for each token is 0.01 tokens.
-                </Text>
+                {useBondingCurve ? (
+                    <>
+                        <Text style={styles.infoTextDetail}>
+                            <Text style={{ fontWeight: 'bold' }}>Bonding Curve Tokens</Text> allow token prices
+                            to increase automatically as more tokens are bought, based on a mathematical curve.
+                        </Text>
+                        <Text style={styles.infoTextDetail}>
+                            - Initial Market Cap: The starting value of all tokens
+                        </Text>
+                        <Text style={styles.infoTextDetail}>
+                            - Target Market Cap: The value when all tokens are bought
+                        </Text>
+                        <Text style={styles.infoTextDetail}>
+                            - Token Supply: Total number of tokens that can exist
+                        </Text>
+                    </>
+                ) : (
+                    <>
+                        <Text style={styles.infoTextDetail}>
+                            Creating a pool allows you to provide liquidity between two tokens and earn fees from trades.
+                        </Text>
+                        <Text style={styles.infoTextDetail}>
+                            Note: You must have both tokens in your wallet to create a pool.
+                        </Text>
+                        <Text style={styles.infoTextDetail}>
+                            <Text style={{ fontWeight: 'bold' }}>Important:</Text> The minimum
+                            amount required for each token is 0.01 tokens.
+                        </Text>
+                    </>
+                )}
                 <Text style={[styles.infoTextDetail, { marginTop: 8, color: '#c75e16' }]}>
                     <Text style={{ fontWeight: 'bold' }}>Mainnet Notice:</Text> Creating a pool on mainnet requires enough SOL
                     to cover rent for new accounts. You need approximately 0.03-0.05 SOL (~$4-6) in your wallet to successfully
@@ -347,14 +710,17 @@ export function PoolCreationSection({
                 </Text>
             </View>
 
-            {/* Create pool button */}
+            {/* Create pool/token button */}
             <TouchableOpacity
                 style={[styles.button, isLoading ? styles.disabledButton : null]}
-                onPress={handleCreatePool}
+                onPress={useBondingCurve ? handleCreateTokenWithCurve : handleCreatePool}
                 disabled={isLoading}
             >
                 <Text style={styles.buttonText}>
-                    {isLoading ? 'Processing...' : 'Create Pool'}
+                    {isLoading ? 'Processing...' :
+                        useBondingCurve ?
+                            (buyOnCreate ? 'Create Token & Buy' : 'Create Token') :
+                            (buyOnCreate ? 'Create Pool & Buy' : 'Create Pool')}
                 </Text>
             </TouchableOpacity>
 
@@ -481,6 +847,18 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#334155',
         fontWeight: '600',
+    },
+    toggleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginVertical: 12,
+        paddingHorizontal: 4,
+    },
+    toggleLabel: {
+        fontSize: 16,
+        color: '#334155',
+        fontWeight: '500',
     },
     button: {
         backgroundColor: '#6E56CF',

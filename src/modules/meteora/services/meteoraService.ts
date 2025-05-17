@@ -23,6 +23,15 @@ async function apiCall(endpoint: string, method: string = 'GET', data?: any) {
   try {
     console.log(`Making API call to ${API_BASE_URL}${endpoint}`);
     
+    // Log the data for debugging if this is a POST request
+    if (method === 'POST' && data) {
+      // Clean up the logged data for readability, avoiding large numbers that might stringify as hex
+      const cleanedData = { ...data };
+      if (cleanedData.buyAmount) cleanedData.buyAmount = String(cleanedData.buyAmount);
+      if (cleanedData.minimumAmountOut) cleanedData.minimumAmountOut = String(cleanedData.minimumAmountOut);
+      console.log('Request data:', JSON.stringify(cleanedData));
+    }
+    
     const options: RequestInit = {
       method,
       headers: {
@@ -32,7 +41,20 @@ async function apiCall(endpoint: string, method: string = 'GET', data?: any) {
     };
 
     if (data && (method === 'POST' || method === 'PUT')) {
-      options.body = JSON.stringify(data);
+      // Ensure numeric values are properly stringified
+      const processedData = { ...data };
+      
+      // Handle specific endpoints that need numeric values as strings
+      if (endpoint.includes('/pool-and-buy')) {
+        if (typeof processedData.buyAmount !== 'string') {
+          processedData.buyAmount = String(processedData.buyAmount);
+        }
+        if (typeof processedData.minimumAmountOut !== 'string') {
+          processedData.minimumAmountOut = String(processedData.minimumAmountOut || '1');
+        }
+      }
+      
+      options.body = JSON.stringify(processedData);
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
@@ -334,6 +356,173 @@ export const createPool = async (
 };
 
 /**
+ * Helper function to create a Meteora DBC token with default parameters
+ * This creates a new token with bonding curve pool for buying/selling.
+ */
+export const createTokenWithCurve = async (
+  params: {
+    tokenName: string;
+    tokenSymbol: string;
+    initialMarketCap: number;
+    targetMarketCap: number;
+    tokenSupply: number;
+    buyAmount?: number; // Optional amount to buy immediately after creation
+    website?: string; // Optional website for token metadata
+    logo?: string; // Optional logo URL for token metadata
+  },
+  connection: Connection,
+  wallet: any,
+  onStatusUpdate?: (status: string) => void
+): Promise<{ configAddress: string, poolAddress?: string, baseMintAddress?: string, txId: string }> => {
+  try {
+    onStatusUpdate?.('Creating new token with bonding curve...');
+    
+    // Step 1: Create the config with bonding curve
+    onStatusUpdate?.('Step 1: Building curve and creating config...');
+    const curveResult = await buildCurveByMarketCap({
+      totalTokenSupply: params.tokenSupply,
+      initialMarketCap: params.initialMarketCap,
+      migrationMarketCap: params.targetMarketCap,
+      migrationOption: 0, // DAMM V1
+      tokenBaseDecimal: 9, // Standard token decimals
+      tokenQuoteDecimal: 9, // SOL has 9 decimals
+      lockedVesting: {
+        amountPerPeriod: new BN(0),
+        cliffDurationFromMigrationTime: new BN(0),
+        frequency: new BN(0),
+        numberOfPeriod: new BN(0),
+        cliffUnlockAmount: new BN(0),
+      },
+      feeSchedulerParam: {
+        numberOfPeriod: 0,
+        reductionFactor: 0,
+        periodFrequency: 0,
+        feeSchedulerMode: 0,
+      },
+      baseFeeBps: 100, // 1% fee
+      dynamicFeeEnabled: true,
+      activationType: 0, // Slot based
+      collectFeeMode: 0, // Only quote
+      migrationFeeOption: 0, // Fixed 25bps
+      tokenType: 0, // SPL token
+      partnerLpPercentage: 25,
+      creatorLpPercentage: 25,
+      partnerLockedLpPercentage: 25,
+      creatorLockedLpPercentage: 25,
+      creatorTradingFeePercentage: 0,
+    }, connection, wallet, onStatusUpdate);
+
+    const configAddress = curveResult.configAddress;
+    
+    if (!configAddress) {
+      throw new Error('Failed to create config - config address not returned');
+    }
+    
+    onStatusUpdate?.(`Config created with address ${configAddress}`);
+    
+    let poolResult;
+    let txId;
+    
+    // If buy amount is specified, use createPoolAndBuy to optimize the flow
+    if (params.buyAmount && params.buyAmount > 0) {
+      // Step 2+3: Create pool and buy in one transaction
+      onStatusUpdate?.(`Creating pool and buying ${params.buyAmount} SOL worth of tokens...`);
+      
+      const buyAmountLamports = Math.floor(params.buyAmount * 1e9);
+      console.log(`Converting buyAmount ${params.buyAmount} SOL to ${buyAmountLamports} lamports`);
+
+      const poolAndBuyResult = await apiCall('/meteora/pool-and-buy', 'POST', {
+        createPoolParam: {
+          quoteMint: 'So11111111111111111111111111111111111111112', // SOL
+          config: configAddress,
+          baseTokenType: 0, // SPL
+          quoteTokenType: 0, // SPL
+          name: params.tokenName,
+          symbol: params.tokenSymbol,
+          uri: params.logo || '', // Use the logo URL as the URI
+          payer: wallet.publicKey.toString(),
+          poolCreator: wallet.publicKey.toString()
+        },
+        buyAmount: buyAmountLamports.toString(), // Use string instead of BN object
+        minimumAmountOut: "1", // Use string instead of BN object
+        referralTokenAccount: null
+      });
+      
+      if (!poolAndBuyResult.success) {
+        throw new Error(poolAndBuyResult.error || 'Failed to create pool and buy tokens');
+      }
+
+      onStatusUpdate?.('Signing transaction...');
+      
+      // Sign and send the transaction
+      const txSignature = await wallet.sendBase64Transaction(
+        poolAndBuyResult.transaction,
+        connection,
+        { confirmTransaction: true, statusCallback: onStatusUpdate }
+      );
+      
+      poolResult = {
+        txId: txSignature,
+        poolAddress: poolAndBuyResult.poolAddress,
+        baseMintAddress: poolAndBuyResult.baseMintAddress
+      };
+
+      onStatusUpdate?.(`Pool created and tokens purchased successfully!`);
+    } else {
+      // Step 2: Create the pool without buying
+      onStatusUpdate?.('Creating pool...');
+      poolResult = await createPool({
+        quoteMint: 'So11111111111111111111111111111111111111112', // SOL
+        config: configAddress,
+        baseTokenType: 0, // SPL
+        quoteTokenType: 0, // SPL
+        name: params.tokenName,
+        symbol: params.tokenSymbol,
+        uri: params.logo || '', // Use the logo URL as the URI
+        payer: wallet.publicKey.toString(),
+        poolCreator: wallet.publicKey.toString()
+      }, connection, wallet, onStatusUpdate);
+      
+      txId = poolResult.txId;
+      onStatusUpdate?.(`Pool created successfully!`);
+    }
+
+    // Step 3 (optional): Create pool metadata if we have any additional info
+    if (poolResult.poolAddress && (params.website || params.logo)) {
+      try {
+        onStatusUpdate?.('Creating pool metadata...');
+        
+        const metadataResult = await createPoolMetadata({
+          virtualPool: poolResult.poolAddress,
+          name: params.tokenName,
+          website: params.website || '',
+          logo: params.logo || '',
+          creator: wallet.publicKey.toString(),
+          payer: wallet.publicKey.toString()
+        }, connection, wallet, onStatusUpdate);
+        
+        onStatusUpdate?.('Pool metadata created successfully!');
+      } catch (metadataError) {
+        console.warn('Error creating pool metadata:', metadataError);
+        onStatusUpdate?.('Note: Pool metadata creation failed, but token was created successfully.');
+        // We don't want to fail the whole process if just metadata creation fails
+      }
+    }
+    
+    return {
+      configAddress,
+      poolAddress: poolResult.poolAddress,
+      baseMintAddress: poolResult.baseMintAddress,
+      txId
+    };
+  } catch (error) {
+    console.error('Error creating token with curve:', error);
+    onStatusUpdate?.('Failed to create token with curve: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    throw error;
+  }
+};
+
+/**
  * Create a pool and buy tokens in one transaction
  */
 export const createPoolAndBuy = async (
@@ -345,10 +534,34 @@ export const createPoolAndBuy = async (
   try {
     onStatusUpdate?.('Creating pool and buying tokens...');
     
-    const result = await apiCall('/pool-and-buy', 'POST', {
+    // Make sure the quoteMint is specified
+    if (!params.createPoolParam.quoteMint) {
+      throw new Error('quoteMint is required for pool creation');
+    }
+
+    // Make sure the config is specified
+    if (!params.createPoolParam.config) {
+      throw new Error('config is required for pool creation');
+    }
+
+    // Example: To create a pool with default config, you could do:
+    // const configResult = await buildCurveByMarketCap({
+    //   totalTokenSupply: 1000000000,
+    //   initialMarketCap: 10, // $10 initial market cap
+    //   migrationMarketCap: 1000, // $1000 target market cap
+    //   migrationOption: 0, // DAMM V1
+    //   tokenBaseDecimal: 9, 
+    //   tokenQuoteDecimal: 9,
+    //   ...other params
+    // }, connection, wallet, onStatusUpdate);
+    // 
+    // // Then use the config address:
+    // params.createPoolParam.config = configResult.configAddress;
+    
+    const result = await apiCall('/meteora/pool-and-buy', 'POST', {
       createPoolParam: {
-        payer: wallet.publicKey,
-        poolCreator: wallet.publicKey,
+        payer: wallet.publicKey.toString(),
+        poolCreator: wallet.publicKey.toString(),
         baseMint: params.createPoolParam.baseMint,
         quoteMint: params.createPoolParam.quoteMint,
         config: params.createPoolParam.config,
@@ -393,7 +606,14 @@ export const createPoolAndBuy = async (
  * Create pool metadata
  */
 export const createPoolMetadata = async (
-  params: CreatePoolMetadataParams,
+  params: {
+    virtualPool: string;
+    name: string;
+    website: string;
+    logo: string;
+    creator: string;
+    payer: string;
+  },
   connection: Connection,
   wallet: any,
   onStatusUpdate?: (status: string) => void
@@ -401,13 +621,13 @@ export const createPoolMetadata = async (
   try {
     onStatusUpdate?.('Creating pool metadata...');
     
-    const result = await apiCall('/pool-metadata', 'POST', {
+    const result = await apiCall('/meteora/pool-metadata', 'POST', {
       virtualPool: params.virtualPool,
       name: params.name,
       website: params.website,
       logo: params.logo,
-      creator: wallet.publicKey,
-      payer: wallet.publicKey
+      creator: params.creator,
+      payer: params.payer
     });
     
     if (!result.success) {

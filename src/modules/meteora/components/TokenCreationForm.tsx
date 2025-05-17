@@ -21,7 +21,7 @@ import {
     MigrationFeeOption,
     BuildCurveByMarketCapParams,
 } from '../types';
-import { buildCurveByMarketCap, createPool } from '../services/meteoraService';
+import { buildCurveByMarketCap, createPool, createTokenWithCurve } from '../services/meteoraService';
 import BondingCurveVisualizer from './BondingCurveVisualizer';
 import { Connection } from '@solana/web3.js';
 import { useWallet } from '@/modules/walletProviders/hooks/useWallet';
@@ -42,6 +42,7 @@ export default function TokenCreationForm({
     const [tokenSymbol, setTokenSymbol] = useState('');
     const [tokenSupply, setTokenSupply] = useState('1000000000');
     const [tokenDecimals, setTokenDecimals] = useState('9');
+    const [tokenWebsite, setTokenWebsite] = useState('');
 
     // Market cap settings
     const [initialMarketCap, setInitialMarketCap] = useState('100');
@@ -49,6 +50,10 @@ export default function TokenCreationForm({
 
     // Token type
     const [isToken2022, setIsToken2022] = useState(false);
+
+    // Buy on creation options
+    const [buyOnCreate, setBuyOnCreate] = useState(false);
+    const [buyAmount, setBuyAmount] = useState('1');
 
     // Advanced options
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -79,6 +84,9 @@ export default function TokenCreationForm({
     const [parsedInitialMarketCap, setParsedInitialMarketCap] = useState(100);
     const [parsedMigrationMarketCap, setParsedMigrationMarketCap] = useState(3000);
     const [parsedTokenSupply, setParsedTokenSupply] = useState(1000000000);
+
+    // Add a new state variable for logo URL
+    const [tokenLogo, setTokenLogo] = useState('');
 
     // Update parsed values when inputs change
     useEffect(() => {
@@ -143,6 +151,21 @@ export default function TokenCreationForm({
             return false;
         }
 
+        // Validate buy amount if buy on create is enabled
+        if (buyOnCreate) {
+            const buyAmountVal = Number(buyAmount);
+            if (isNaN(buyAmountVal) || buyAmountVal <= 0) {
+                setError('Buy amount must be a positive number');
+                return false;
+            }
+
+            // Check if buy amount is reasonable (usually not more than 100 SOL)
+            if (buyAmountVal > 100) {
+                setError('Buy amount is unusually high. Please check the amount.');
+                return false;
+            }
+        }
+
         // Check LP percentages add up to 100%
         const totalPercentage = Number(partnerLpPercentage) +
             Number(creatorLpPercentage) +
@@ -181,89 +204,44 @@ export default function TokenCreationForm({
         setStatusMessage('Preparing to create token...');
 
         try {
-            // Build curve parameters
-            const curveParams: BuildCurveByMarketCapParams = {
-                totalTokenSupply: Number(tokenSupply),
-                initialMarketCap: Number(initialMarketCap),
-                migrationMarketCap: Number(migrationMarketCap),
-                migrationOption: MigrationOption.MeteoraDamm,
-                tokenBaseDecimal: Number(tokenDecimals),
-                tokenQuoteDecimal: 9, // SOL decimals
-                lockedVesting: {
-                    amountPerPeriod: '0',
-                    cliffDurationFromMigrationTime: '0',
-                    frequency: '0',
-                    numberOfPeriod: '0',
-                    cliffUnlockAmount: '0',
-                },
-                feeSchedulerParam: {
-                    numberOfPeriod: 0,
-                    reductionFactor: 0,
-                    periodFrequency: 0,
-                    feeSchedulerMode: FeeSchedulerMode.Linear,
-                },
-                baseFeeBps: Number(baseFeeBps),
-                dynamicFeeEnabled,
-                activationType: ActivationType.Slot,
-                collectFeeMode: collectFeeBoth ? CollectFeeMode.Both : CollectFeeMode.OnlyQuote,
-                migrationFeeOption: selectedMigrationFee,
-                tokenType: isToken2022 ? TokenType.Token2022 : TokenType.SPL,
-                partnerLpPercentage: Number(partnerLpPercentage),
-                creatorLpPercentage: Number(creatorLpPercentage),
-                partnerLockedLpPercentage: Number(partnerLockedLpPercentage),
-                creatorLockedLpPercentage: Number(creatorLockedLpPercentage),
-                creatorTradingFeePercentage: 0,
-            };
+            // Log parameters for debugging
+            console.log('Creating token with params:', {
+                tokenName,
+                tokenSymbol,
+                initialMarketCap: parseFloat(initialMarketCap),
+                targetMarketCap: parseFloat(migrationMarketCap),
+                tokenSupply: parseInt(tokenSupply),
+                buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
+                website: tokenWebsite
+            });
 
-            // Create bonding curve config
-            const configResult = await buildCurveByMarketCap(
-                curveParams,
-                connection,
-                wallet,
-                setStatusMessage
-            );
-
-            console.log('Curve config created with txId:', configResult.txId);
-
-            // Store the config address for the next step
-            const configAddress = configResult.configAddress;
-            setConfigAddress(configAddress);
-
-            setStatusMessage('Creating token and pool...');
-
-            // Now create the pool with the new token
-            const createPoolResult = await createPool(
+            // Use the improved createTokenWithCurve function
+            const result = await createTokenWithCurve(
                 {
-                    quoteMint: 'So11111111111111111111111111111111111111112', // SOL
-                    config: configAddress,
-                    baseTokenType: isToken2022 ? TokenType.Token2022 : TokenType.SPL,
-                    quoteTokenType: TokenType.SPL,
-                    name: tokenName,
-                    symbol: tokenSymbol,
-                    uri: '', // Would normally be a URL to token metadata
-                } as any, // Cast as any to bypass the type check for baseMint
+                    tokenName,
+                    tokenSymbol,
+                    initialMarketCap: parseFloat(initialMarketCap),
+                    targetMarketCap: parseFloat(migrationMarketCap),
+                    tokenSupply: parseInt(tokenSupply),
+                    buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
+                    website: tokenWebsite,
+                    logo: tokenLogo
+                },
                 connection,
                 wallet,
                 setStatusMessage
             );
 
-            console.log('Pool created with txId:', createPoolResult.txId);
-            console.log('Token mint address:', createPoolResult.baseMintAddress);
-            console.log('Pool address:', createPoolResult.poolAddress);
+            console.log('Token created successfully:', result);
 
-            // Use the baseMintAddress from the create pool result as the token address
-            const tokenAddress = createPoolResult.baseMintAddress;
-
-            if (onTokenCreated) {
-                onTokenCreated(tokenAddress, createPoolResult.txId);
+            if (onTokenCreated && result.baseMintAddress) {
+                onTokenCreated(result.baseMintAddress, result.txId);
             }
-
         } catch (err) {
             console.error('Error creating token:', err);
-            setError('Failed to create token. Please try again.');
+            setError(`Failed to create token: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
             setIsCreating(false);
-            setStatusMessage('');
         }
     };
 
@@ -293,6 +271,30 @@ export default function TokenCreationForm({
                         placeholderTextColor={COLORS.greyDark}
                         maxLength={10}
                     />
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Website (Optional)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={tokenWebsite}
+                        onChangeText={setTokenWebsite}
+                        placeholder="e.g. https://example.com"
+                        placeholderTextColor={COLORS.greyDark}
+                    />
+                    <Text style={styles.helperText}>Project website for token metadata</Text>
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Logo URL (Optional)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={tokenLogo}
+                        onChangeText={setTokenLogo}
+                        placeholder="e.g. https://example.com/logo.png"
+                        placeholderTextColor={COLORS.greyDark}
+                    />
+                    <Text style={styles.helperText}>Direct URL to token logo image</Text>
                 </View>
 
                 <View style={styles.inputContainer}>
@@ -377,6 +379,33 @@ export default function TokenCreationForm({
                     <Text style={styles.helperText}>When reached, token graduates to DAMM V1.</Text>
                 </View>
 
+                {/* Buy on create option */}
+                <View style={styles.switchContainer}>
+                    <Text style={styles.label}>Buy tokens after creation</Text>
+                    <Switch
+                        value={buyOnCreate}
+                        onValueChange={setBuyOnCreate}
+                        trackColor={{ false: COLORS.greyDark, true: COLORS.brandPrimary }}
+                        thumbColor={buyOnCreate ? COLORS.white : COLORS.greyLight}
+                    />
+                </View>
+
+                {/* Buy amount input (only shown when toggle is on) */}
+                {buyOnCreate && (
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Amount to buy (SOL)</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={buyAmount}
+                            onChangeText={setBuyAmount}
+                            placeholder="e.g. 1"
+                            placeholderTextColor={COLORS.greyDark}
+                            keyboardType="numeric"
+                        />
+                        <Text style={styles.helperText}>Amount of SOL to spend buying your token after creation.</Text>
+                    </View>
+                )}
+
                 {/* Add the bonding curve visualizer */}
                 <BondingCurveVisualizer
                     initialMarketCap={parsedInitialMarketCap}
@@ -441,7 +470,7 @@ export default function TokenCreationForm({
                                 { label: '6%', value: MigrationFeeOption.FixedBps600 },
                             ].map((fee) => (
                                 <TouchableOpacity
-                                    key={fee.value}
+                                    key={`fee-${fee.value}`}
                                     style={[
                                         styles.feeTierButton,
                                         selectedMigrationFee === fee.value && styles.feeTierButtonSelected,
@@ -514,6 +543,12 @@ export default function TokenCreationForm({
                     </View>
                 )}
 
+                {isCreating && statusMessage ? (
+                    <View style={styles.statusContainer}>
+                        <Text style={styles.statusText}>{statusMessage}</Text>
+                    </View>
+                ) : null}
+
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
                 <View style={styles.buttonRow}>
@@ -535,7 +570,9 @@ export default function TokenCreationForm({
                             {isCreating ? (
                                 <ActivityIndicator color={COLORS.white} />
                             ) : (
-                                <Text style={styles.actionButtonText}>Create Token</Text>
+                                <Text style={styles.actionButtonText}>
+                                    {buyOnCreate ? 'Create & Buy Tokens' : 'Create Token'}
+                                </Text>
                             )}
                         </LinearGradient>
                     </TouchableOpacity>
@@ -663,6 +700,18 @@ const styles = StyleSheet.create({
         color: COLORS.errorRed,
         fontSize: TYPOGRAPHY.size.sm,
         marginVertical: 8,
+    },
+    statusContainer: {
+        backgroundColor: COLORS.darkerBackground,
+        padding: 12,
+        borderRadius: 8,
+        marginVertical: 12,
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.brandPrimary,
+    },
+    statusText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
     },
     actionButton: {
         marginTop: 16,

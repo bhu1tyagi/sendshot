@@ -47,6 +47,66 @@ router.post('/pool', async (req, res) => {
 });
 
 /**
+ * Pool and Buy
+ */
+router.post('/pool-and-buy', async (req, res) => {
+  try {
+    console.log('Received pool-and-buy request with params:', JSON.stringify({
+      createPoolParam: req.body.createPoolParam,
+      buyAmount: String(req.body.buyAmount || ''),
+      minimumAmountOut: String(req.body.minimumAmountOut || '1')
+    }, null, 2));
+    
+    // Ensure parameters are in correct format
+    const params = {
+      createPoolParam: {
+        ...req.body.createPoolParam,
+        // Make sure these are strings, not PublicKey objects
+        payer: String(req.body.createPoolParam.payer),
+        poolCreator: String(req.body.createPoolParam.poolCreator),
+        quoteMint: String(req.body.createPoolParam.quoteMint),
+        config: String(req.body.createPoolParam.config),
+      },
+      buyAmount: String(req.body.buyAmount),
+      minimumAmountOut: String(req.body.minimumAmountOut || "1"),
+      referralTokenAccount: req.body.referralTokenAccount
+    };
+    
+    const result = await meteoraDBCService.createPoolAndBuy(params);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /pool-and-buy route:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Create pool metadata
+ */
+router.post('/pool-metadata', async (req, res) => {
+  try {
+    const result = await meteoraDBCService.createPoolMetadata({
+      virtualPool: req.body.virtualPool,
+      name: req.body.name,
+      website: req.body.website,
+      logo: req.body.logo,
+      creator: req.body.creator,
+      payer: req.body.payer
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /pool-metadata route:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * Swap
  */
 router.post('/swap', async (req, res) => {

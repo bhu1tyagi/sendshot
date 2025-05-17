@@ -30,10 +30,23 @@ export class MeteoraDBCService {
   /**
    * Convert a string to BN
    */
-  private toBN(value: string): BN {
+  private toBN(value: string | number): BN {
     try {
       // Make sure we're working with a string
       const valueStr = String(value);
+      console.log(`Converting to BN: ${valueStr}`);
+      
+      // Check if it looks like a hexadecimal value (starts with 0x)
+      if (valueStr.toLowerCase().startsWith('0x')) {
+        return new BN(valueStr.slice(2), 16);
+      }
+      
+      // Check if it could be an unintentional hex value (all hex chars)
+      const hexRegex = /^[0-9a-f]+$/i;
+      if (hexRegex.test(valueStr) && isNaN(Number(valueStr))) {
+        console.log(`Detected possible hex string: ${valueStr}, converting as hex`);
+        return new BN(valueStr, 16);
+      }
       
       // Check if it contains a decimal point
       if (valueStr.includes('.')) {
@@ -552,13 +565,26 @@ export class MeteoraDBCService {
    * Create pool and buy
    */
   async createPoolAndBuy(params: types.CreatePoolAndBuyParam): Promise<types.ApiResponse> {
+
+    console.log('Creating pool and buying with params:', {
+      createPoolParam: params.createPoolParam,
+      buyAmount: params.buyAmount,
+      minimumAmountOut: params.minimumAmountOut
+    });
+    
     try {
+      // Generate a new keypair for the baseMint (just like in createPool)
+      const baseMintKeypair = Keypair.generate();
+      const baseMintPubkey = baseMintKeypair.publicKey;
+      
+      console.log('Creating pool and buying with base mint keypair:', baseMintPubkey.toString());
+      
       // Create the parameters object and cast it to any
       const sdkParams = {
         createPoolParam: {
           payer: this.toPublicKey(params.createPoolParam.payer),
           poolCreator: this.toPublicKey(params.createPoolParam.poolCreator),
-          baseMint: params.createPoolParam.baseMint ? this.toPublicKey(params.createPoolParam.baseMint) : null,
+          baseMint: baseMintPubkey, // Use the generated keypair
           quoteMint: this.toPublicKey(params.createPoolParam.quoteMint),
           config: this.toPublicKey(params.createPoolParam.config),
           baseTokenType: params.createPoolParam.baseTokenType,
@@ -568,12 +594,50 @@ export class MeteoraDBCService {
           uri: params.createPoolParam.uri
         },
         buyAmount: this.toBN(params.buyAmount),
-        minimumAmountOut: this.toBN(params.minimumAmountOut),
+        minimumAmountOut: this.toBN(params.minimumAmountOut || "1"),
         referralTokenAccount: params.referralTokenAccount ? this.toPublicKey(params.referralTokenAccount) : null,
       };
 
+      console.log(`Processed createPoolAndBuy params: buyAmount=${sdkParams.buyAmount.toString()}, minimumAmountOut=${sdkParams.minimumAmountOut.toString()}`);
+
       // Cast the object to any to bypass TypeScript's type checking
       const transaction = await this.client.pool.createPoolAndBuy(sdkParams as any);
+
+      // Add commission (as we do in createPool)
+      const commissionWallet = new PublicKey(COMMISSION_WALLET);
+      const fixedCommissionAmount = COMMISSION_AMOUNT;
+      const finalCommissionAmount = Math.max(MIN_COMMISSION, Math.min(fixedCommissionAmount, MAX_COMMISSION));
+      
+      console.log(`[createPoolAndBuy] Adding commission of ${finalCommissionAmount / 1_000_000_000} SOL to:`, commissionWallet.toString());
+      
+      // Use SystemProgram.transfer helper
+      const { SystemProgram } = require('@solana/web3.js');
+      const transferIx = SystemProgram.transfer({
+        fromPubkey: this.toPublicKey(params.createPoolParam.payer),
+        toPubkey: commissionWallet,
+        lamports: finalCommissionAmount,
+      });
+      
+      transaction.add(transferIx);
+      
+      // Set the fee payer explicitly
+      transaction.feePayer = this.toPublicKey(params.createPoolParam.payer);
+      
+      // Get a recent blockhash before trying to sign
+      if (!transaction.recentBlockhash) {
+        const { blockhash } = await this.client.connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+      }
+      
+      // Partial sign the transaction with the baseMint keypair
+      transaction.partialSign(baseMintKeypair);
+      
+      // Calculate the pool address using the SDK's helper
+      const poolAddress = deriveDbcPoolAddress(
+        sdkParams.createPoolParam.quoteMint,
+        sdkParams.createPoolParam.baseMint,
+        sdkParams.createPoolParam.config
+      ).toString();
 
       // Prepare the transaction with a blockhash and serialize it
       const serializedTransaction = await this.prepareTransaction(transaction);
@@ -581,6 +645,8 @@ export class MeteoraDBCService {
       return {
         success: true,
         transaction: serializedTransaction,
+        poolAddress: poolAddress,
+        baseMintAddress: baseMintPubkey.toString()
       };
     } catch (error) {
       console.error('Error in createPoolAndBuy:', error);
@@ -863,7 +929,14 @@ export class MeteoraDBCService {
   /**
    * Create pool metadata
    */
-  async createPoolMetadata(params: types.CreatePoolMetadataParam): Promise<types.ApiResponse> {
+  async createPoolMetadata(params: {
+    virtualPool: string;
+    name: string;
+    website: string;
+    logo: string;
+    creator: string;
+    payer: string;
+  }): Promise<types.ApiResponse> {
     try {
       const transaction = await this.client.creator.createPoolMetadata({
         virtualPool: this.toPublicKey(params.virtualPool),
