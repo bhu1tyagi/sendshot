@@ -4,11 +4,118 @@ import { MeteoraDBCService } from '../../service/MeteoraDBC/meteoraDBCService';
 import * as types from '../../service/MeteoraDBC/types';
 import { getConnection } from '../../utils/connection';
 import dotenv from 'dotenv';
+import multer from 'multer';
+import { uploadToPinata } from '../../utils/ipfs';
 
 // Load environment variables
 dotenv.config();
 
 const router = express.Router();
+
+// Configure multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * Upload token metadata and image to IPFS
+ * @route POST /api/meteora/uploadMetadata
+ */
+router.post('/uploadMetadata', upload.single('image'), async (req: any, res: any) => {
+  try {
+    console.log('[MeteoraDBC] Received metadata upload request');
+    
+    const {tokenName, tokenSymbol, description, twitter, telegram, website, imageUrl} = req.body;
+    
+    console.log('[MeteoraDBC] Processing token metadata:', {
+      name: tokenName,
+      symbol: tokenSymbol,
+      hasDescription: !!description,
+      hasTwitter: !!twitter,
+      hasTelegram: !!telegram,
+      hasWebsite: !!website,
+      hasImageUrl: !!imageUrl,
+      hasFile: !!req.file
+    });
+    
+    if (!tokenName || !tokenSymbol || !description) {
+      console.error('[MeteoraDBC] Missing required fields');
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields (tokenName, tokenSymbol, description)',
+      });
+    }
+    
+    // Image can be either a file upload or a URL
+    let imageBuffer;
+    let imageSource;
+    
+    if (req.file) {
+      // Process uploaded file
+      console.log('[MeteoraDBC] Using uploaded image file:', req.file.originalname || 'unnamed');
+      imageBuffer = req.file.buffer;
+      imageSource = 'uploaded file';
+    } else if (imageUrl) {
+      // Use provided URL directly
+      console.log('[MeteoraDBC] Using image URL:', imageUrl);
+      imageSource = 'url';
+    } else {
+      console.error('[MeteoraDBC] No image provided');
+      return res.status(400).json({
+        success: false,
+        error: 'Image file or URL is required',
+      });
+    }
+
+    // Create metadata object
+    const metadataObj : any = {
+      name: tokenName,
+      symbol: tokenSymbol,
+      description,
+      showName: true,
+      twitter: twitter || '',
+      telegram: telegram || '',
+      website: website || '',
+      createdOn: 'https://meteora.ag/',
+    };
+    
+    console.log('[MeteoraDBC] Preparing to upload to IPFS/Pinata');
+    
+    // Upload to IPFS if we have an image buffer, otherwise use the URL directly
+    let metadataUri;
+    try {
+      if (imageBuffer) {
+        console.log('[MeteoraDBC] Uploading image buffer to Pinata');
+        metadataUri = await uploadToPinata(imageBuffer, metadataObj);
+      } else if (imageUrl) {
+        // When using an existing URL, we still create a JSON metadata file but reference the URL
+        console.log('[MeteoraDBC] Using existing URL in metadata:', imageUrl);
+        metadataObj.image = imageUrl;
+        // Create a dummy buffer since uploadToPinata doesn't accept null
+        const dummyBuffer = Buffer.from('');
+        metadataUri = await uploadToPinata(dummyBuffer, metadataObj);
+      }
+      
+      console.log('[MeteoraDBC] Successfully uploaded metadata, URI:', metadataUri);
+    } catch (uploadError) {
+      console.error('[MeteoraDBC] IPFS upload error:', uploadError);
+      return res.status(500).json({
+        success: false,
+        error: uploadError instanceof Error ? uploadError.message : 'Error uploading to IPFS',
+      });
+    }
+
+    return res.json({
+      success: true,
+      metadataUri,
+      imageSource
+    });
+  } catch (err) {
+    console.error('[MeteoraDBC] Upload Metadata Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error uploading metadata',
+    });
+  }
+});
 
 // Get connection with confirmed commitment level
 const connection = getConnection('confirmed');

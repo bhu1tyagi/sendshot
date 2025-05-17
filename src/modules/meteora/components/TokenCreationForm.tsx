@@ -8,8 +8,11 @@ import {
     ScrollView,
     ActivityIndicator,
     Switch,
+    Image,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
 import {
@@ -21,7 +24,7 @@ import {
     MigrationFeeOption,
     BuildCurveByMarketCapParams,
 } from '../types';
-import { buildCurveByMarketCap, createPool, createTokenWithCurve } from '../services/meteoraService';
+import { buildCurveByMarketCap, createPool, createTokenWithCurve, uploadTokenMetadata } from '../services/meteoraService';
 import BondingCurveVisualizer from './BondingCurveVisualizer';
 import { Connection } from '@solana/web3.js';
 import { useWallet } from '@/modules/walletProviders/hooks/useWallet';
@@ -46,6 +49,9 @@ export default function TokenCreationForm({
     const [tokenSupply, setTokenSupply] = useState('1000000000');
     const [tokenDecimals, setTokenDecimals] = useState('9');
     const [tokenWebsite, setTokenWebsite] = useState('');
+    const [tokenDescription, setTokenDescription] = useState('');
+    const [tokenTwitter, setTokenTwitter] = useState('');
+    const [tokenTelegram, setTokenTelegram] = useState('');
 
     // Market cap settings
     const [initialMarketCap, setInitialMarketCap] = useState('100');
@@ -78,6 +84,14 @@ export default function TokenCreationForm({
     const [configAddress, setConfigAddress] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
 
+    // Image and metadata handling
+    const [tokenLogo, setTokenLogo] = useState('');
+    const [imageUri, setImageUri] = useState<string | null>(null);
+    const [imageFile, setImageFile] = useState<any>(null);
+    const [metadataUri, setMetadataUri] = useState('');
+    const [isUploadingMetadata, setIsUploadingMetadata] = useState(false);
+    const [showSocials, setShowSocials] = useState(false);
+
     // Get wallet and connection
     const wallet = useWallet();
     // Create a connection to the Solana network
@@ -87,9 +101,6 @@ export default function TokenCreationForm({
     const [parsedInitialMarketCap, setParsedInitialMarketCap] = useState(100);
     const [parsedMigrationMarketCap, setParsedMigrationMarketCap] = useState(3000);
     const [parsedTokenSupply, setParsedTokenSupply] = useState(1000000000);
-
-    // Add a new state variable for logo URL
-    const [tokenLogo, setTokenLogo] = useState('');
 
     // Update parsed values when inputs change
     useEffect(() => {
@@ -117,6 +128,16 @@ export default function TokenCreationForm({
 
         if (!tokenSymbol.trim()) {
             setError('Token symbol is required');
+            return false;
+        }
+
+        if (!tokenDescription.trim()) {
+            setError('Token description is required');
+            return false;
+        }
+
+        if (!imageUri && !tokenLogo) {
+            setError('Token image is required');
             return false;
         }
 
@@ -204,9 +225,23 @@ export default function TokenCreationForm({
 
         setError('');
         setIsCreating(true);
-        setStatusMessage('Preparing to create token...');
 
         try {
+            // Step 1: Upload metadata first
+            setStatusMessage('Uploading token metadata...');
+            let uri = metadataUri;
+
+            if (!uri) {
+                uri = await uploadMetadata();
+            }
+
+            if (!uri) {
+                throw new Error('Failed to get metadata URI');
+            }
+
+            // Step 2: Create token with curve
+            setStatusMessage('Creating token with bonding curve...');
+
             // Log parameters for debugging
             console.log('Creating token with params:', {
                 tokenName,
@@ -215,10 +250,10 @@ export default function TokenCreationForm({
                 targetMarketCap: parseFloat(migrationMarketCap),
                 tokenSupply: parseInt(tokenSupply),
                 buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
-                website: tokenWebsite
+                metadataUri: uri
             });
 
-            // Use the improved createTokenWithCurve function
+            // Use the improved createTokenWithCurve function with metadata URI
             const result = await createTokenWithCurve(
                 {
                     tokenName,
@@ -227,8 +262,9 @@ export default function TokenCreationForm({
                     targetMarketCap: parseFloat(migrationMarketCap),
                     tokenSupply: parseInt(tokenSupply),
                     buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
+                    metadataUri: uri,
                     website: tokenWebsite,
-                    logo: tokenLogo
+                    logo: imageUri || tokenLogo
                 },
                 connection,
                 wallet,
@@ -275,6 +311,94 @@ export default function TokenCreationForm({
         }
     };
 
+    // Add a function to handle image picking
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets.length > 0) {
+                setImageUri(result.assets[0].uri);
+                setImageFile(result.assets[0]);
+                // If using direct URL input before, clear it
+                if (tokenLogo && tokenLogo !== result.assets[0].uri) {
+                    setTokenLogo('');
+                }
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Error', 'Failed to select image');
+        }
+    };
+
+    // Function to remove selected image
+    const removeImage = () => {
+        setImageUri(null);
+        setImageFile(null);
+        setTokenLogo('');
+    };
+
+    // Function to use image from URL
+    const setImageFromUrl = () => {
+        if (tokenLogo && (
+            tokenLogo.startsWith('http://') ||
+            tokenLogo.startsWith('https://') ||
+            tokenLogo.startsWith('ipfs://')
+        )) {
+            setImageUri(tokenLogo);
+            setImageFile(null);
+        } else {
+            Alert.alert('Invalid URL', 'Please enter a valid URL starting with http://, https://, or ipfs://');
+        }
+    };
+
+    // Add function to upload metadata
+    const uploadMetadata = async (): Promise<string> => {
+        try {
+            setIsUploadingMetadata(true);
+            setStatusMessage('Uploading token metadata and image...');
+
+            if (!tokenName || !tokenSymbol || !tokenDescription) {
+                throw new Error('Missing required metadata fields');
+            }
+
+            if (!imageUri && !tokenLogo) {
+                throw new Error('Token image is required');
+            }
+
+            // Create form data for upload
+            const metadataResult = await uploadTokenMetadata({
+                tokenName,
+                tokenSymbol,
+                description: tokenDescription,
+                imageUri: imageUri || tokenLogo,
+                imageFile: imageFile,
+                twitter: tokenTwitter,
+                telegram: tokenTelegram,
+                website: tokenWebsite,
+            });
+
+            if (!metadataResult.success || !metadataResult.metadataUri) {
+                throw new Error(metadataResult.error || 'Failed to upload metadata');
+            }
+
+            setMetadataUri(metadataResult.metadataUri);
+            setStatusMessage('Metadata uploaded successfully!');
+            return metadataResult.metadataUri;
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error uploading metadata';
+            console.error('Error uploading metadata:', errorMessage);
+            setStatusMessage('');
+            throw new Error(errorMessage);
+        } finally {
+            setIsUploadingMetadata(false);
+        }
+    };
+
     const renderStep1 = () => {
         return (
             <View>
@@ -304,6 +428,18 @@ export default function TokenCreationForm({
                 </View>
 
                 <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Description</Text>
+                    <TextInput
+                        style={[styles.input, { height: 80 }]}
+                        value={tokenDescription}
+                        onChangeText={setTokenDescription}
+                        placeholder="Describe your token's purpose"
+                        placeholderTextColor={COLORS.greyDark}
+                        multiline
+                    />
+                </View>
+
+                <View style={styles.inputContainer}>
                     <Text style={styles.label}>Website (Optional)</Text>
                     <TextInput
                         style={styles.input}
@@ -315,17 +451,116 @@ export default function TokenCreationForm({
                     <Text style={styles.helperText}>Project website for token metadata</Text>
                 </View>
 
+                {/* Token image section - improved UI */}
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Logo URL (Optional)</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={tokenLogo}
-                        onChangeText={setTokenLogo}
-                        placeholder="e.g. https://example.com/logo.png"
-                        placeholderTextColor={COLORS.greyDark}
-                    />
-                    <Text style={styles.helperText}>Direct URL to token logo image</Text>
+                    <Text style={styles.label}>Token Image</Text>
+                    <View style={styles.imageUploadContainer}>
+                        {imageUri ? (
+                            <View style={styles.imagePreviewContainer}>
+                                {imageUri.startsWith('http') || imageUri.startsWith('ipfs') ? (
+                                    <View style={styles.imageUrlPreview}>
+                                        <Text style={styles.imageUrlText}>{imageUri}</Text>
+                                    </View>
+                                ) : (
+                                    <Image
+                                        source={{ uri: imageUri }}
+                                        style={styles.imagePreview}
+                                    />
+                                )}
+                                <View style={styles.imageControlsContainer}>
+                                    <TouchableOpacity
+                                        style={styles.imageControlButton}
+                                        onPress={pickImage}
+                                        disabled={isCreating}>
+                                        <Text style={styles.imageControlText}>Change</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.imageControlButton, styles.removeButton]}
+                                        onPress={removeImage}
+                                        disabled={isCreating}>
+                                        <Text style={styles.imageControlText}>Remove</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ) : (
+                            <View style={styles.uploadContent}>
+                                <TouchableOpacity
+                                    onPress={pickImage}
+                                    style={styles.uploadImageButton}
+                                    disabled={isCreating}>
+                                    <LinearGradient
+                                        colors={['#32D4DE', '#B591FF']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.uploadButtonGradient}
+                                    >
+                                        <Text style={styles.uploadButtonText}>Upload Image</Text>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+
+                                <Text style={styles.orText}>OR</Text>
+
+                                <View style={styles.urlInputContainer}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter image URL (https://... or ipfs://...)"
+                                        placeholderTextColor={COLORS.greyDark}
+                                        value={tokenLogo}
+                                        onChangeText={setTokenLogo}
+                                        editable={!isCreating}
+                                    />
+                                    <TouchableOpacity
+                                        onPress={setImageFromUrl}
+                                        style={[styles.urlButton, !tokenLogo && styles.disabledButton]}
+                                        disabled={isCreating || !tokenLogo}>
+                                        <Text style={styles.urlButtonText}>Use URL</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={styles.helperText}>
+                                    Upload a square image (recommended 512x512px)
+                                </Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
+
+                {/* Social media section */}
+                <TouchableOpacity
+                    style={styles.socialsToggleButton}
+                    onPress={() => setShowSocials(!showSocials)}
+                    disabled={isCreating}>
+                    <Text style={styles.socialsToggleText}>
+                        {showSocials ? 'Hide Social Links' : 'Add Social Links'} {showSocials ? '↑' : '↓'}
+                    </Text>
+                </TouchableOpacity>
+
+                {showSocials && (
+                    <View style={styles.socialsContainer}>
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Twitter (Optional)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={tokenTwitter}
+                                onChangeText={setTokenTwitter}
+                                placeholder="@username"
+                                placeholderTextColor={COLORS.greyDark}
+                                editable={!isCreating}
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Telegram (Optional)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={tokenTelegram}
+                                onChangeText={setTokenTelegram}
+                                placeholder="t.me/community"
+                                placeholderTextColor={COLORS.greyDark}
+                                editable={!isCreating}
+                            />
+                        </View>
+                    </View>
+                )}
 
                 <View style={styles.inputContainer}>
                     <Text style={styles.label}>Total Supply</Text>
@@ -851,5 +1086,137 @@ const styles = StyleSheet.create({
     },
     createButton: {
         width: '65%',
+    },
+    imageUploadContainer: {
+        backgroundColor: COLORS.lighterBackground,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: COLORS.borderDarkColor,
+        borderStyle: 'dashed',
+        height: 200,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    uploadContent: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+        padding: 20,
+    },
+    imagePreviewContainer: {
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    imageUrlPreview: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: COLORS.darkerBackground,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    imageUrlText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontFamily: TYPOGRAPHY.fontFamily,
+        textAlign: 'center',
+    },
+    imageControlsContainer: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        flexDirection: 'row',
+    },
+    imageControlButton: {
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 4,
+        marginLeft: 8,
+    },
+    removeButton: {
+        backgroundColor: 'rgba(220,53,69,0.8)', // Red color with transparency
+    },
+    imageControlText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.xs,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    selectFileButton: {
+        backgroundColor: COLORS.background,
+        paddingVertical: 8,
+        paddingHorizontal: 24,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: COLORS.borderDarkColor,
+        marginBottom: 12,
+    },
+    selectFileText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    orText: {
+        color: COLORS.greyMid,
+        fontSize: TYPOGRAPHY.size.sm,
+        textAlign: 'center',
+        marginVertical: 8,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    urlButton: {
+        backgroundColor: COLORS.brandPrimary,
+        paddingVertical: 8,
+        paddingHorizontal: 24,
+        borderRadius: 4,
+        marginTop: 8,
+        alignSelf: 'center',
+    },
+    urlButtonText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    socialsToggleButton: {
+        paddingVertical: 12,
+        marginBottom: 8,
+    },
+    socialsToggleText: {
+        color: COLORS.brandPrimary,
+        fontSize: TYPOGRAPHY.size.md,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    socialsContainer: {
+        marginBottom: 16,
+    },
+    uploadImageButton: {
+        overflow: 'hidden',
+        borderRadius: 8,
+        marginBottom: 16,
+    },
+    uploadButtonGradient: {
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        alignItems: 'center',
+    },
+    uploadButtonText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: TYPOGRAPHY.weights.semiBold,
+        fontFamily: TYPOGRAPHY.fontFamily,
+    },
+    urlInputContainer: {
+        width: '100%',
+        marginBottom: 12,
+    },
+    disabledButton: {
+        opacity: 0.5,
     },
 }); 
