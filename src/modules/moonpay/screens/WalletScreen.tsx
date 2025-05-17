@@ -14,12 +14,14 @@ import {
   ViewStyle,
   StyleProp,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { HELIUS_STAKED_URL } from '@env';
 import { useWallet } from '@/modules/walletProviders/hooks/useWallet';
+import { useAuth } from '@/modules/walletProviders/hooks/useAuth';
 import COLORS from '@/assets/colors';
 import Icons from '@/assets/svgs';
 import AppHeader from '@/core/sharedUI/AppHeader';
@@ -111,6 +113,7 @@ function WalletScreen({
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [copied, setCopied] = useState(false);
+  const { logout } = useAuth();
 
   // Use the wallet hook to get the address
   const { address } = useWallet();
@@ -300,6 +303,24 @@ function WalletScreen({
       Clipboard.setString(walletAddress);
       setCopied(true);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => logout()
+        }
+      ]
+    );
   };
 
   // Show loading state while fetching data
@@ -550,6 +571,21 @@ function WalletScreen({
             </View>
             <View style={styles.actionBadge}>
               <Text style={styles.actionBadgeText}>MoonPay</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Logout Button */}
+          <TouchableOpacity
+            style={[styles.actionButton, { marginTop: 12 }]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: COLORS.errorRed }]}>
+              <Icons.walletIcon width={24} height={24} color={COLORS.white} />
+            </View>
+            <View style={styles.actionTextContainer}>
+              <Text style={styles.actionText}>Logout</Text>
+              <Text style={styles.actionSubtext}>Sign out of your wallet</Text>
             </View>
           </TouchableOpacity>
 

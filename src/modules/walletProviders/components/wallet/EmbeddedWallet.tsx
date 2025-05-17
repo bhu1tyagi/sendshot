@@ -76,16 +76,10 @@ const EmbeddedWalletAuth: React.FC<EmbeddedWalletAuthProps> = ({
   // For Dynamic, if user is already authenticated, trigger onWalletConnected immediately
   useEffect(() => {
     if (authConfig.provider === 'dynamic' && status === 'authenticated' && user?.id) {
-      console.log('User already authenticated with Dynamic, triggering callback and navigating');
+      console.log('User already authenticated with Dynamic, triggering callback');
       onWalletConnected({ provider: 'dynamic', address: user.id });
-
-      // Navigate to PlatformSelectionScreen after a short delay
-      // The delay ensures the onWalletConnected callback has time to complete
-      setTimeout(() => {
-        navigation.navigate('MainTabs' as never);
-      }, 100);
     }
-  }, [authConfig.provider, status, user, onWalletConnected, navigation]);
+  }, [authConfig.provider, status, user, onWalletConnected]);
 
   const loginWithMWA = async () => {
     // Check if we're on Android AND if all required modules are available
@@ -145,11 +139,6 @@ const EmbeddedWalletAuth: React.FC<EmbeddedWalletAuthProps> = ({
           provider: 'mwa',
           address: base58Address,
         });
-
-        // Navigate to MainTabs after a short delay
-        setTimeout(() => {
-          navigation.navigate('MainTabs' as never);
-        }, 100);
       } else {
         Alert.alert('Connection Error', 'No accounts found in wallet');
       }

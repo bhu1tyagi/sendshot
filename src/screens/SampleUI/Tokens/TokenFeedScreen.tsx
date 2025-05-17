@@ -15,16 +15,32 @@ import {
 } from 'react-native';
 import { TabView, SceneMap } from 'react-native-tab-view';
 import { useNavigation } from '@react-navigation/native';
+import { useDispatch, useSelector } from 'react-redux';
 import AppHeader from '@/core/sharedUI/AppHeader';
 import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
 import { BIRDEYE_API_KEY } from '@env';
 import TokenDetailsSheet from '@/core/sharedUI/TrendingTokenDetails/TokenDetailsSheet';
+import { RootState } from '@/shared/state/store';
+import { fetchAllTokens, fetchUserTokens } from '@/shared/state/tokens';
+import { TokenData } from '@/shared/state/tokens/reducer';
 
 const { width } = Dimensions.get('window');
 
-// Type definition for tokens
-interface Token {
+// Type definition for birdeye trending tokens
+interface BirdeyeToken {
+    address: string;
+    name: string;
+    symbol: string;
+    logoURI?: string;
+    price: number;
+    price24hChangePercent?: number;
+    rank?: number;
+}
+
+// Type for the Token display
+interface TokenDisplay {
+    id: string;
     address: string;
     name: string;
     symbol: string;
@@ -34,69 +50,26 @@ interface Token {
     rank?: number;
 }
 
-// Dummy data for user-created tokens
-const userCreatedTokens: Token[] = [
-    {
-        address: 'user1',
-        name: 'Community Finance',
-        symbol: 'CFIN',
-        logoURI: 'https://cryptologos.cc/logos/aave-aave-logo.png',
-        price: 0.034,
-        priceChange24h: 12.5,
-        rank: 1,
-    },
-    {
-        address: 'user2',
-        name: 'Decentralized Gaming',
-        symbol: 'DGAME',
-        logoURI: 'https://cryptologos.cc/logos/axie-infinity-axs-logo.png',
-        price: 0.089,
-        priceChange24h: -5.2,
-        rank: 2,
-    },
-    {
-        address: 'user3',
-        name: 'NFT Marketplace',
-        symbol: 'NFTM',
-        logoURI: 'https://cryptologos.cc/logos/enjin-coin-enj-logo.png',
-        price: 0.012,
-        priceChange24h: 32.1,
-        rank: 3,
-    },
-    {
-        address: 'user4',
-        name: 'AI Protocol',
-        symbol: 'AIP',
-        logoURI: 'https://cryptologos.cc/logos/the-graph-grt-logo.png',
-        price: 0.067,
-        priceChange24h: 8.9,
-        rank: 4,
-    },
-    {
-        address: 'user5',
-        name: 'Social Media Token',
-        symbol: 'SMT',
-        logoURI: 'https://cryptologos.cc/logos/chiliz-chz-logo.png',
-        price: 0.023,
-        priceChange24h: -1.8,
-        rank: 5,
-    },
-];
-
 const TokenFeedScreen = () => {
     const navigation = useNavigation();
+    const dispatch = useDispatch();
     const [index, setIndex] = useState(0);
     const [routes] = useState([
         { key: 'trending', title: 'Trending' },
         { key: 'userCreated', title: 'User Created' },
     ]);
 
-    // State for tokens
-    const [trendingTokens, setTrendingTokens] = useState<Token[]>([]);
+    // Get state from Redux
+    const { address } = useSelector((state: RootState) => state.auth);
+    const { allTokens, userTokens, loading, error } = useSelector((state: RootState) => state.tokens);
+    
+    // State for trending tokens from Birdeye
+    const [trendingTokens, setTrendingTokens] = useState<TokenDisplay[]>([]);
     const [loadingTrending, setLoadingTrending] = useState(true);
+    const [trendingError, setTrendingError] = useState<string | null>(null);
 
     // Selected token state
-    const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+    const [selectedToken, setSelectedToken] = useState<TokenDisplay | null>(null);
     const [isTokenDetailsVisible, setIsTokenDetailsVisible] = useState(false);
 
     // Animation
@@ -112,10 +85,34 @@ const TokenFeedScreen = () => {
 
         // Fetch trending tokens
         fetchTrendingTokens();
-    }, []);
+        
+        // Fetch all tokens from our database
+        dispatch(fetchAllTokens() as any);
+        
+        // If user is logged in, fetch their tokens
+        if (address) {
+            dispatch(fetchUserTokens(address) as any);
+        }
+    }, [dispatch, address]);
+
+    // Convert database tokens to display format
+    const getUserTokensForDisplay = (): TokenDisplay[] => {
+        if (!address || !userTokens[address]) return [];
+        
+        return userTokens[address].map(token => ({
+            id: token.id,
+            address: token.address,
+            name: token.name,
+            symbol: token.symbol,
+            logoURI: token.logoURI,
+            price: token.currentPrice || token.initialPrice,
+            priceChange24h: token.priceChange24h || 0,
+        }));
+    };
 
     const fetchTrendingTokens = async () => {
         setLoadingTrending(true);
+        setTrendingError(null);
         try {
             // Using BirdEye API to get trending tokens
             const response = await fetch(
@@ -135,8 +132,9 @@ const TokenFeedScreen = () => {
             const data = await response.json();
 
             if (data.success && data.data?.tokens) {
-                // Map to the Token type
-                const formattedTokens: Token[] = data.data.tokens.map((token: any) => ({
+                // Map to the TokenDisplay type
+                const formattedTokens: TokenDisplay[] = data.data.tokens.map((token: BirdeyeToken) => ({
+                    id: token.address, // Use address as ID for birdeye tokens
                     address: token.address,
                     name: token.name,
                     symbol: token.symbol,
@@ -149,23 +147,37 @@ const TokenFeedScreen = () => {
                 setTrendingTokens(formattedTokens);
             } else {
                 console.error('Invalid token response format:', data);
+                setTrendingError('Invalid response from Birdeye API');
             }
         } catch (error) {
             console.error('Error fetching trending tokens:', error);
-            // Use sample data if API fails
-            setTrendingTokens(userCreatedTokens.slice(0, 3));
+            setTrendingError('Error fetching trending tokens');
+            
+            // Use sample tokens from our database as fallback
+            if (allTokens.length > 0) {
+                const fallbackTokens = allTokens.slice(0, 5).map(token => ({
+                    id: token.id,
+                    address: token.address,
+                    name: token.name,
+                    symbol: token.symbol,
+                    logoURI: token.logoURI,
+                    price: token.currentPrice || token.initialPrice,
+                    priceChange24h: token.priceChange24h || 0,
+                }));
+                setTrendingTokens(fallbackTokens);
+            }
         } finally {
             setLoadingTrending(false);
         }
     };
 
-    const handleTokenPress = (token: Token) => {
+    const handleTokenPress = (token: TokenDisplay) => {
         setSelectedToken(token);
         setIsTokenDetailsVisible(true);
     };
 
     // Token item component with buy/swap options
-    const renderTokenItem = ({ item }: { item: Token }) => {
+    const renderTokenItem = ({ item }: { item: TokenDisplay }) => {
         const priceChangeColor =
             !item.priceChange24h ? COLORS.greyMid :
                 item.priceChange24h >= 0 ? '#4CAF50' : COLORS.errorRed;
@@ -257,11 +269,21 @@ const TokenFeedScreen = () => {
                     <ActivityIndicator size="large" color={COLORS.brandPrimary} style={styles.loader} />
                     <Text style={styles.loaderText}>Loading trending tokens...</Text>
                 </View>
+            ) : trendingError ? (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{trendingError}</Text>
+                    <TouchableOpacity 
+                        style={styles.retryButton}
+                        onPress={fetchTrendingTokens}
+                    >
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
             ) : (
                 <FlatList
                     data={trendingTokens}
                     renderItem={renderTokenItem}
-                    keyExtractor={item => item.address}
+                    keyExtractor={item => item.id}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
@@ -277,19 +299,34 @@ const TokenFeedScreen = () => {
 
     const UserCreatedTokensTab = () => (
         <View style={styles.tabContent}>
-            <FlatList
-                data={userCreatedTokens}
-                renderItem={renderTokenItem}
-                keyExtractor={item => item.address}
-                contentContainerStyle={styles.listContainer}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>No user created tokens available</Text>
-                        <Text style={styles.emptySubText}>Check back later</Text>
-                    </View>
-                }
-            />
+            {loading ? (
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color={COLORS.brandPrimary} style={styles.loader} />
+                    <Text style={styles.loaderText}>Loading user tokens...</Text>
+                </View>
+            ) : error ? (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={getUserTokensForDisplay()}
+                    renderItem={renderTokenItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                                {address ? "You haven't created any tokens yet" : "Please log in to see your tokens"}
+                            </Text>
+                            <Text style={styles.emptySubText}>
+                                {address ? "Launch your first token to get started" : "Log in to view and manage your tokens"}
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
 
@@ -550,6 +587,31 @@ const styles = StyleSheet.create({
         color: COLORS.greyMid,
         letterSpacing: TYPOGRAPHY.letterSpacing,
     },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 80,
+        paddingHorizontal: 30,
+    },
+    errorText: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+        color: COLORS.errorRed,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    retryButton: {
+        backgroundColor: COLORS.brandPrimary,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+    },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -572,4 +634,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default TokenFeedScreen; 
+export default TokenFeedScreen;

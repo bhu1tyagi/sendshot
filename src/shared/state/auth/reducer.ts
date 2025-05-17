@@ -31,6 +31,43 @@ const initialState: AuthState = {
 const SERVER_BASE_URL = SERVER_URL || 'http://localhost:3000';
 
 /**
+ * Create or update a user in the database after login
+ */
+export const createUserOnLogin = createAsyncThunk(
+  'auth/createUserOnLogin',
+  async (userData: {
+    userId: string;
+    username?: string;
+    provider: 'privy' | 'dynamic' | 'turnkey' | 'mwa';
+  }, thunkAPI) => {
+    try {
+      // Make an API call to create or update the user in the database
+      const response = await fetch(`${SERVER_BASE_URL}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userData.userId,
+          username: userData.username || userData.userId.substring(0, 6),
+          provider: userData.provider,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        return thunkAPI.rejectWithValue(data.error || 'Failed to create user');
+      }
+      
+      return data.user;
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || 'Error creating user');
+    }
+  }
+);
+
+/**
  * Fetch the user's profile from the server, including profile pic URL, username,
  * and attachment data.
  */
@@ -123,86 +160,6 @@ export const updateDescription = createAsyncThunk(
 );
 
 /**
- * Attach or update a coin on the user's profile.
- * Now accepts: { userId, attachmentData } where attachmentData = { coin: { mint, symbol, name } }
- */
-export const attachCoinToProfile = createAsyncThunk(
-  'auth/attachCoinToProfile',
-  async (
-    {
-      userId,
-      attachmentData,
-    }: {
-      userId: string;
-      attachmentData: {coin: {mint: string; symbol?: string; name?: string}};
-    },
-    thunkAPI,
-  ) => {
-    try {
-      const response = await fetch(
-        `${SERVER_BASE_URL}/api/profile/attachCoin`,
-        {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            userId,
-            attachmentData,
-          }),
-        },
-      );
-      const data = await response.json();
-      if (!data.success) {
-        return thunkAPI.rejectWithValue(data.error || 'Failed to attach coin');
-      }
-      return data.attachmentData as {
-        coin: {mint: string; symbol?: string; name?: string};
-      };
-    } catch (err: any) {
-      return thunkAPI.rejectWithValue(
-        err.message || 'Attach coin request failed.',
-      );
-    }
-  },
-);
-
-/**
- * Remove an attached coin from the user's profile.
- */
-export const removeAttachedCoin = createAsyncThunk(
-  'auth/removeAttachedCoin',
-  async (
-    {
-      userId,
-    }: {
-      userId: string;
-    },
-    thunkAPI,
-  ) => {
-    try {
-      const response = await fetch(
-        `${SERVER_BASE_URL}/api/profile/removeAttachedCoin`,
-        {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            userId,
-          }),
-        },
-      );
-      const data = await response.json();
-      if (!data.success) {
-        return thunkAPI.rejectWithValue(data.error || 'Failed to remove coin');
-      }
-      return data.success;
-    } catch (err: any) {
-      return thunkAPI.rejectWithValue(
-        err.message || 'Remove coin request failed.',
-      );
-    }
-  },
-);
-
-/**
  * Delete the current user's account.
  * The server will expect userId in the body since requireAuth was temporarily removed.
  * IMPORTANT: Proper authentication should be reinstated on the server for this endpoint.
@@ -261,6 +218,8 @@ const authSlice = createSlice({
         description?: string;
       }>,
     ) {
+      console.log('[AuthReducer] loginSuccess action received:', action.payload.provider, action.payload.address.substring(0, 8) + '...');
+      
       // Preserve existing profile data if available and no new data provided
       state.provider = action.payload.provider;
       state.address = action.payload.address;
@@ -286,6 +245,8 @@ const authSlice = createSlice({
       if (action.payload.description || !state.description) {
         state.description = action.payload.description || state.description;
       }
+      
+      console.log('[AuthReducer] Auth state updated, isLoggedIn set to:', state.isLoggedIn);
     },
     logoutSuccess(state) {
       console.log('[AuthReducer] logoutSuccess: Resetting state.');
@@ -338,21 +299,6 @@ const authSlice = createSlice({
       state.description = action.payload;
     });
 
-    builder.addCase(attachCoinToProfile.fulfilled, (state, action) => {
-      if (state.address) {
-        state.attachmentData = {coin: action.payload.coin};
-      }
-    });
-
-    builder.addCase(removeAttachedCoin.fulfilled, (state) => {
-      if (state.address) {
-        // Remove the coin property from attachmentData
-        if (state.attachmentData) {
-          delete state.attachmentData.coin;
-        }
-      }
-    });
-
     builder.addCase(deleteAccountAction.pending, (state) => {
       // Optional: Handle pending state, e.g., set a global loading flag if needed
       console.log('[AuthSlice] deleteAccountAction pending...');
@@ -366,6 +312,16 @@ const authSlice = createSlice({
     builder.addCase(deleteAccountAction.rejected, (state, action) => {
       // Optional: Handle rejected state, e.g., display a global error
       console.error('[AuthSlice] deleteAccountAction rejected:', action.payload || action.error.message);
+    });
+    
+    // Add cases for createUserOnLogin
+    builder.addCase(createUserOnLogin.fulfilled, (state, action) => {
+      console.log('[AuthSlice] createUserOnLogin fulfilled:', action.payload);
+      // We can update state with any additional user data returned from server if needed
+    });
+    builder.addCase(createUserOnLogin.rejected, (state, action) => {
+      console.error('[AuthSlice] createUserOnLogin rejected:', action.payload || action.error.message);
+      // Could handle error state here if needed
     });
   },
 });

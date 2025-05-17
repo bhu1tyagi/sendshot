@@ -1,8 +1,8 @@
 import {configureStore} from '@reduxjs/toolkit';
 import authReducer from './auth/reducer';
 import transactionReducer from './transaction/reducer';
-import usersReducer from './users/reducer';
 import notificationReducer from './notification/reducer';
+import tokensReducer from './tokens/reducer';
 
 // Redux persist imports
 import { persistStore, persistReducer } from 'redux-persist';
@@ -21,8 +21,8 @@ const persistConfig = {
 const rootReducer = combineReducers({
   auth: authReducer,
   transaction: transactionReducer,
-  users: usersReducer,
   notification: notificationReducer,
+  tokens: tokensReducer,
 });
 
 // Create persisted reducer (only for auth)

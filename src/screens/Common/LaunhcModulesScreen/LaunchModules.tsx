@@ -15,13 +15,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '../../../modules/walletProviders/hooks/useAuth';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Icons from '../../../assets/svgs';
 import COLORS from '@/assets/colors';
-import TYPOGRAPHY from '@/assets/typography';
 import { AppHeader } from '@/core/sharedUI';
+import { RootState } from '@/shared/state/store';
 
-// Commented sections to be re-enabled later if needed
+// Launchpad modules
 const modules = [
   {
     key: 'pumpfun',
@@ -31,6 +32,7 @@ const modules = [
     iconImage: require('@/assets/images/Pumpfun_logo.png'),
     backgroundImage: require('@/assets/images/Pumpfun_bg.png'),
     usePngIcon: true,
+    protocolType: 'pumpfun',
   },
   // {
   //   key: 'pumpswap',
@@ -47,6 +49,7 @@ const modules = [
     navigateTo: 'LaunchlabsScreen',
     iconComponent: Icons.RadyuimIcom,
     backgroundImage: require('@/assets/images/Rayduim_bg.png'),
+    protocolType: 'raydium',
   },
   {
     key: 'tokenmill',
@@ -55,23 +58,18 @@ const modules = [
     navigateTo: 'TokenMill',
     iconComponent: Icons.TokenMillIcon,
     backgroundImage: require('@/assets/images/TokenMill_bg.png'),
+    protocolType: 'tokenmill',
   },
   {
     key: 'meteora',
     title: 'Meteora',
     subtitle: 'Powerful DEX with concentrated liquidity',
     navigateTo: 'MeteoraScreen',
-    iconComponent: Icons.RadyuimIcom, // Reusing an existing icon temporarily
-    backgroundImage: require('@/assets/images/TokenMill_bg.png'), // Reusing an existing background temporarily
+    iconImage: require('@/assets/images/meteora.jpg'),
+    backgroundImage: require('@/assets/images/new_meteora_cover.png'),
+    usePngIcon: true,
+    protocolType: 'meteora',
   },
-  // {
-  //   key: 'nft',
-  //   title: 'NFT Screen',
-  //   description:
-  //     'Browse, buy, and sell NFTs with integrated wallet support and listing functionality.',
-  //   backgroundColor: '#E1BEE7',
-  //   navigateTo: 'NftScreen',
-  // },
 ];
 
 // Define styles for the LaunchPads screen
@@ -155,6 +153,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.white,
+  },
+  loginRequired: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: COLORS.greyLight,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  loginButton: {
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: COLORS.brandPrimary,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  loginButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.white,
   }
 });
 
@@ -167,17 +185,58 @@ const androidStyles = StyleSheet.create({
 
 export default function ModuleScreen() {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
+  const { isLoggedIn, address } = useSelector((state: RootState) => state.auth);
+  const auth = useAuth();
+  
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const handlePress = useCallback((module: any) => {
-    if (module.navigateTo) {
-      navigation.navigate(module.navigateTo as never);
+    if (!isLoggedIn) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to launch a token.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Login Now", 
+            onPress: () => handleLogin()
+          }
+        ]
+      );
+      return;
     }
-  }, [navigation]);
+    
+    if (module.navigateTo) {
+      // Store the protocol type in navigation params
+      // Cast as any to fix navigation types
+      navigation.navigate(module.navigateTo, {
+        protocolType: module.protocolType
+      } as any);
+    }
+  }, [navigation, isLoggedIn]);
+
+  const handleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      // Use the loginWithEmail method since we can see it's defined in useAuth.ts
+      if (typeof auth.loginWithEmail === 'function') {
+        await auth.loginWithEmail();
+      } else {
+        console.warn('Login method unavailable');
+        Alert.alert('Login Unavailable', 'The login service is currently unavailable.');
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      Alert.alert('Login Failed', 'Could not complete the login process.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
-
 
   // Render a launch card
   const renderLaunchCard = (module: any) => {
@@ -232,8 +291,6 @@ export default function ModuleScreen() {
         styles.container,
         Platform.OS === 'android' && androidStyles.safeArea,
       ]}>
-      {/* {renderLoggingOutOverlay()} */}
-
       {/* Replace custom header with reusable AppHeader */}
       <AppHeader
         title="Launchpads"
@@ -242,9 +299,25 @@ export default function ModuleScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.sectionTitle}>Launch via</Text>
-
-        {/* Only render active modules */}
+        {!isLoggedIn && (
+          <>
+            <Text style={styles.loginRequired}>
+              Login to create and manage your tokens
+            </Text>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLogin}
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.loginButtonText}>Login</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
+        
         {modules.map(module => renderLaunchCard(module))}
       </ScrollView>
     </SafeAreaView>

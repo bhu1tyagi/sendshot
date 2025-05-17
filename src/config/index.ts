@@ -10,11 +10,6 @@ import {
   TURNKEY_ORGANIZATION_ID,
 } from '@env';
 
-import {dummyProfileData} from '../shared/mocks/profileInfoData';
-import {tweetsData} from '../shared/mocks/tweets';
-import {allposts} from '../shared/mocks/posts';
-import {dummyData} from '../shared/mocks/users';
-
 /** Extended config for each auth provider */
 export interface PrivyConfig {
   appId: string;
@@ -56,14 +51,6 @@ export interface TransactionProviderConfig {
   network: 'mainnet-beta' | 'devnet' | 'testnet';
 }
 
-/** Mock data config (unchanged) */
-export interface MockDataConfig {
-  profileData: typeof dummyProfileData;
-  tweetsData: typeof tweetsData;
-  postsData: typeof allposts;
-  usersData: typeof dummyData;
-}
-
 /** Provide default auth config, reading from env or fallback. */
 export const DefaultAuthConfig: AuthProviderConfig = {
   provider: 'privy', // or 'dynamic', 'turnkey', etc.
@@ -102,24 +89,14 @@ export const DefaultTransactionConfig: TransactionProviderConfig = {
   defaultFeeTier: ''
 };
 
-/** Provide default mock data config. */
-export const DefaultMockDataConfig: MockDataConfig = {
-  profileData: dummyProfileData,
-  tweetsData: tweetsData,
-  postsData: allposts,
-  usersData: dummyData,
-};
-
 /** Overall customization config shape. */
 export interface CustomizationConfig {
   auth: AuthProviderConfig;
   transaction: TransactionProviderConfig;
-  mockData: MockDataConfig;
 }
 
 /** The combined default config. */
 export const DefaultCustomizationConfig: CustomizationConfig = {
   auth: DefaultAuthConfig,
   transaction: DefaultTransactionConfig,
-  mockData: DefaultMockDataConfig,
 };

@@ -65,41 +65,39 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  // Determine which screens to show based on login state
+  console.log('[RootNavigator] Rendering with isLoggedIn:', isLoggedIn);
+  
+  // Render both auth and non-auth screens, but separate them
   const renderScreens = () => {
-    if (isLoggedIn) {
-      return (
-        <>
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen name="Pumpfun" component={PumpfunScreen} />
-          <Stack.Screen name="TokenMill" component={TokenMillScreen} />
-          <Stack.Screen name="PumpSwap" component={PumpSwapScreen} />
-          <Stack.Screen name="LaunchlabsScreen" component={LaunchlabsScreen} />
-          <Stack.Screen name="MeteoraScreen" component={MeteoraScreen} />
-          <Stack.Screen name="WalletScreen" component={WalletScreen} />
-          <Stack.Screen name="OnrampScreen" component={OnrampScreen} />
-          <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
-          <Stack.Screen name="DeleteAccountConfirmationScreen" component={DeleteAccountConfirmationScreen} />
-          <Stack.Screen name="SwapScreen" component={SwapScreen} />
-        </>
-      );
-    } else {
-      return (
-        <>
-          <Stack.Screen name="IntroScreen" component={IntroScreen} />
-          <Stack.Screen name="LoginOptions" component={LoginScreen} />
-          {/* Still include MainTabs for navigation from IntroScreen if user is found to be logged in */}
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        </>
-      );
-    }
+    return (
+      <>
+        {/* Common screens for both logged-in and logged-out users */}
+        <Stack.Screen name="IntroScreen" component={IntroScreen} />
+        
+        {/* Auth screens */}
+        <Stack.Screen name="LoginOptions" component={LoginScreen} />
+        
+        {/* Main app screens */}
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="Pumpfun" component={PumpfunScreen} />
+        <Stack.Screen name="TokenMill" component={TokenMillScreen} />
+        <Stack.Screen name="PumpSwap" component={PumpSwapScreen} />
+        <Stack.Screen name="LaunchlabsScreen" component={LaunchlabsScreen} />
+        <Stack.Screen name="MeteoraScreen" component={MeteoraScreen} />
+        <Stack.Screen name="WalletScreen" component={WalletScreen} />
+        <Stack.Screen name="OnrampScreen" component={OnrampScreen} />
+        <Stack.Screen name="WebViewScreen" component={WebViewScreen} />
+        <Stack.Screen name="DeleteAccountConfirmationScreen" component={DeleteAccountConfirmationScreen} />
+        <Stack.Screen name="SwapScreen" component={SwapScreen} />
+      </>
+    );
   };
 
   return (
     <Stack.Navigator
       screenOptions={{ headerShown: false }}
-      // When logged in, start at MainTabs; otherwise start at IntroScreen
-      initialRouteName={isLoggedIn ? "MainTabs" : "IntroScreen"}
+      // Always start with IntroScreen, it will handle navigation based on auth state
+      initialRouteName="IntroScreen"
     >
       {renderScreens()}
     </Stack.Navigator>

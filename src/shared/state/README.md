@@ -135,4 +135,117 @@ const Component = () => {
 - Test selectors
 - Test async operations
 - Mock API calls
-- Use proper test utilities 
+- Use proper test utilities
+
+## Token Management System
+
+The token management system allows users to create and track tokens across different protocols in the application. 
+
+### Token Structure
+
+The `tokens` state slice manages user-created tokens with the following structure:
+
+```typescript
+interface TokenData {
+  id: string;
+  address: string;
+  name: string;
+  symbol: string;
+  logoURI?: string;
+  creatorId: string;
+  createdAt: string;
+  initialPrice: number;
+  currentPrice?: number;
+  priceChange24h?: number;
+  totalSupply: string;
+  holders?: number;
+  protocolType: 'pumpfun' | 'raydium' | 'tokenmill' | 'meteora';
+}
+```
+
+### State Structure
+
+The tokens state is structured as follows:
+
+```typescript
+interface TokensState {
+  userTokens: Record<string, TokenData[]>; // userId -> array of tokens
+  allTokens: TokenData[];
+  loading: boolean;
+  error: string | null;
+}
+```
+
+### API Actions
+
+The following actions are available to interact with the token state:
+
+- `fetchUserTokens(userId: string)` - Fetches all tokens created by a specific user
+- `fetchAllTokens()` - Fetches all tokens in the system
+- `createToken(tokenData: Omit<TokenData, 'id' | 'createdAt'>)` - Creates a new token
+- `updateToken({ tokenId, updates })` - Updates an existing token
+
+### Usage Examples
+
+**Fetch user tokens:**
+
+```typescript
+import { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchUserTokens } from '@/shared/state/tokens';
+import { RootState } from '@/shared/state/store';
+
+// In your component
+const { address } = useSelector((state: RootState) => state.auth);
+const dispatch = useDispatch();
+
+useEffect(() => {
+  if (address) {
+    dispatch(fetchUserTokens(address));
+  }
+}, [address, dispatch]);
+```
+
+**Create a new token:**
+
+```typescript
+import { createToken } from '@/shared/state/tokens';
+import { useDispatch } from 'react-redux';
+
+// In your component
+const dispatch = useDispatch();
+
+const handleCreateToken = () => {
+  dispatch(createToken({
+    address: '0x123...',
+    name: 'My Token',
+    symbol: 'MTK',
+    creatorId: address,
+    initialPrice: 0.01,
+    totalSupply: '1000000',
+    protocolType: 'pumpfun'
+  }));
+};
+```
+
+### Database Schema
+
+The tokens are stored in the database with the following schema:
+
+```sql
+CREATE TABLE tokens (
+  id UUID PRIMARY KEY,
+  address TEXT NOT NULL,
+  name TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  logo_uri TEXT,
+  creator_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  initial_price DECIMAL NOT NULL,
+  current_price DECIMAL,
+  price_change_24h DECIMAL,
+  total_supply TEXT NOT NULL,
+  holders INTEGER,
+  protocol_type TEXT NOT NULL
+);
+``` 

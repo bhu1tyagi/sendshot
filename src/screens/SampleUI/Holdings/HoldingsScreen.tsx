@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,84 +8,38 @@ import {
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
-    Platform,
+    ActivityIndicator,
 } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import AppHeader from '@/core/sharedUI/AppHeader';
 import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
-
-// Dummy data for user's created tokens
-const dummyUserTokens = [
-    {
-        id: '1',
-        name: 'LaunchPad Token',
-        symbol: 'LPT',
-        logoURI: 'https://cryptologos.cc/logos/solana-sol-logo.png',
-        createdAt: '2023-11-15T10:30:00Z',
-        initialPrice: 0.05,
-        currentPrice: 0.12,
-        change: 140,
-        totalSupply: '1,000,000',
-        holders: 145,
-    },
-    {
-        id: '2',
-        name: 'Community DAO',
-        symbol: 'CDAO',
-        logoURI: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-        createdAt: '2023-12-10T14:20:00Z',
-        initialPrice: 0.02,
-        currentPrice: 0.015,
-        change: -25,
-        totalSupply: '10,000,000',
-        holders: 78,
-    },
-    {
-        id: '3',
-        name: 'GameFi Project',
-        symbol: 'GFP',
-        logoURI: 'https://cryptologos.cc/logos/polygon-matic-logo.png',
-        createdAt: '2024-01-05T09:15:00Z',
-        initialPrice: 0.008,
-        currentPrice: 0.023,
-        change: 187.5,
-        totalSupply: '5,000,000',
-        holders: 210,
-    },
-    {
-        id: '4',
-        name: 'Metaverse Token',
-        symbol: 'META',
-        logoURI: 'https://cryptologos.cc/logos/chainlink-link-logo.png',
-        createdAt: '2024-02-20T16:45:00Z',
-        initialPrice: 0.1,
-        currentPrice: 0.095,
-        change: -5,
-        totalSupply: '2,000,000',
-        holders: 56,
-    },
-    {
-        id: '5',
-        name: 'DeFi Protocol',
-        symbol: 'DEFI',
-        logoURI: 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
-        createdAt: '2024-03-15T11:30:00Z',
-        initialPrice: 0.03,
-        currentPrice: 0.075,
-        change: 150,
-        totalSupply: '8,000,000',
-        holders: 123,
-    },
-];
+import { RootState } from '@/shared/state/store';
+import { fetchUserTokens } from '@/shared/state/tokens';
+import { TokenData } from '@/shared/state/tokens/reducer';
 
 const HoldingsScreen = () => {
-    const renderTokenItem = ({ item }) => {
+    const dispatch = useDispatch();
+    const { address } = useSelector((state: RootState) => state.auth);
+    const { userTokens, loading, error } = useSelector((state: RootState) => state.tokens);
+    
+    // Get the current user's tokens
+    const userTokensList: TokenData[] = address && userTokens[address] ? userTokens[address] : [];
+
+    useEffect(() => {
+        if (address) {
+            dispatch(fetchUserTokens(address) as any);
+        }
+    }, [dispatch, address]);
+
+    const renderTokenItem = ({ item }: { item: TokenData }) => {
         // Format date
         const createdDate = new Date(item.createdAt);
         const formattedDate = `${createdDate.toLocaleDateString()} ${createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
         // Set color based on price change
-        const changeColor = item.change >= 0 ? '#4CAF50' : COLORS.errorRed;
+        const changeColor = (item.priceChange24h ?? 0) >= 0 ? '#4CAF50' : COLORS.errorRed;
+        const changeValue = item.priceChange24h !== undefined ? item.priceChange24h : 0;
 
         return (
             <View style={styles.tokenCard}>
@@ -102,9 +56,9 @@ const HoldingsScreen = () => {
                         <Text style={styles.tokenName}>{item.name}</Text>
                     </View>
                     <View style={styles.tokenMetrics}>
-                        <Text style={styles.tokenPrice}>${item.currentPrice.toFixed(4)}</Text>
+                        <Text style={styles.tokenPrice}>${(item.currentPrice || item.initialPrice).toFixed(4)}</Text>
                         <Text style={[styles.tokenChange, { color: changeColor }]}>
-                            {item.change >= 0 ? '+' : ''}{item.change}%
+                            {changeValue >= 0 ? '+' : ''}{changeValue.toFixed(2)}%
                         </Text>
                     </View>
                 </View>
@@ -124,7 +78,7 @@ const HoldingsScreen = () => {
                     </View>
                     <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Holders:</Text>
-                        <Text style={styles.detailValue}>{item.holders}</Text>
+                        <Text style={styles.detailValue}>{item.holders || 'N/A'}</Text>
                     </View>
                 </View>
 
@@ -134,6 +88,42 @@ const HoldingsScreen = () => {
                     </TouchableOpacity>
                 </View>
             </View>
+        );
+    };
+
+    const renderContent = () => {
+        if (loading) {
+            return (
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color={COLORS.brandPrimary} />
+                    <Text style={styles.loaderText}>Loading your tokens...</Text>
+                </View>
+            );
+        }
+
+        if (error) {
+            return (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>Error loading tokens</Text>
+                    <Text style={styles.errorSubText}>{error}</Text>
+                </View>
+            );
+        }
+
+        return (
+            <FlatList
+                data={userTokensList}
+                renderItem={renderTokenItem}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>You haven't created any tokens yet</Text>
+                        <Text style={styles.emptySubText}>Your launched tokens will appear here</Text>
+                    </View>
+                }
+            />
         );
     };
 
@@ -147,19 +137,7 @@ const HoldingsScreen = () => {
                 <Text style={styles.headerSubtitle}>Tokens you've created</Text>
             </View>
 
-            <FlatList
-                data={dummyUserTokens}
-                renderItem={renderTokenItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContainer}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>You haven't created any tokens yet</Text>
-                        <Text style={styles.emptySubText}>Your launched tokens will appear here</Text>
-                    </View>
-                }
-            />
+            {renderContent()}
         </SafeAreaView>
     );
 };
@@ -313,6 +291,34 @@ const styles = StyleSheet.create({
         color: COLORS.greyMid,
         textAlign: 'center',
         letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    loaderText: {
+        marginTop: 16,
+        fontSize: TYPOGRAPHY.size.md,
+        color: COLORS.greyLight,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+        color: COLORS.errorRed,
+        marginBottom: 8,
+    },
+    errorSubText: {
+        fontSize: TYPOGRAPHY.size.sm,
+        color: COLORS.greyMid,
+        textAlign: 'center',
     },
 });
 

@@ -1,12 +1,13 @@
 import {useCallback} from 'react';
 import {useDispatch} from 'react-redux';
-import {loginSuccess, logoutSuccess} from '../../../shared/state/auth/reducer';
+import {loginSuccess, logoutSuccess, createUserOnLogin} from '../../../shared/state/auth/reducer';
 import {usePrivyWalletLogic} from '../services/walletProviders/privy';
 import {useCustomization} from '../../../config/CustomizationProvider';
 import {useAppNavigation} from '../../../shared/hooks/useAppNavigation';
 import {useAppSelector} from '../../../shared/hooks/useReduxHooks';
 import {useLoginWithOAuth} from '@privy-io/expo';
 import { StandardWallet } from '../types';
+import { AnyAction } from '@reduxjs/toolkit';
 
 /**
  * Summarized usage:
@@ -88,18 +89,28 @@ export function useAuth() {
             const initialUsername = info.address.substring(0, 6);
             console.log('[useAuth] Setting initial username:', initialUsername);
             
+            // Dispatch login action to update Redux state
             dispatch(loginSuccess({
               provider: 'privy', 
               address: info.address,
               username: initialUsername
             }));
-            navigation.navigate('MainTabs');
+            
+            // Also create/update user in database - cast to AnyAction to fix type issue
+            dispatch(createUserOnLogin({
+              userId: info.address,
+              username: initialUsername,
+              provider: 'privy'
+            }) as unknown as AnyAction);
+            
+            // REMOVED: navigation.navigate('MainTabs');
+            // Let Redux state change handle navigation
           },
         });
       } catch (error) {
         console.error('[useAuth] Google login error:', error);
       }
-    }, [loginWithOAuth, monitorSolanaWallet, solanaWallet, dispatch, navigation]);
+    }, [loginWithOAuth, monitorSolanaWallet, solanaWallet, dispatch]);
 
     const loginWithApple = useCallback(async () => {
       try {
@@ -143,19 +154,29 @@ export function useAuth() {
             const initialUsername = info.address.substring(0, 6);
             console.log('[useAuth] Setting initial username:', initialUsername);
             
+            // Dispatch login action to update Redux state
             dispatch(loginSuccess({
               provider: 'privy', 
               address: info.address,
               username: initialUsername
             }));
-            navigation.navigate('MainTabs');
+            
+            // Also create/update user in database - cast to AnyAction to fix type issue
+            dispatch(createUserOnLogin({
+              userId: info.address,
+              username: initialUsername,
+              provider: 'privy'
+            }) as unknown as AnyAction);
+            
+            // REMOVED: navigation.navigate('MainTabs');
+            // Let Redux state change handle navigation
           },
         });
       } catch (error) {
         console.error('[useAuth] Apple login error:', error);
         throw error; // Re-throw to allow component-level error handling
       }
-    }, [loginWithOAuth, monitorSolanaWallet, solanaWallet, dispatch, navigation]);
+    }, [loginWithOAuth, monitorSolanaWallet, solanaWallet, dispatch]);
 
     const loginWithEmail = useCallback(async () => {
       try {
@@ -180,13 +201,22 @@ export function useAuth() {
               const initialUsername = info.address.substring(0, 6);
               console.log('[useAuth] Setting initial username:', initialUsername);
               
+              // Dispatch login action to update Redux state
               dispatch(loginSuccess({
                 provider: 'privy', 
                 address: info.address,
                 username: initialUsername
               }));
               
-              navigation.navigate('MainTabs');
+              // Also create/update user in database - cast to AnyAction to fix type issue
+              dispatch(createUserOnLogin({
+                userId: info.address,
+                username: initialUsername,
+                provider: 'privy'
+              }) as unknown as AnyAction);
+              
+              // REMOVED: navigation.navigate('MainTabs');
+              // Let Redux state change handle navigation
             },
           });
         } else {
@@ -196,7 +226,7 @@ export function useAuth() {
         console.error('[useAuth] Email login error:', error);
         throw error; // Re-throw to allow component-level error handling
       }
-    }, [handlePrivyLogin, monitorSolanaWallet, dispatch, navigation]);
+    }, [handlePrivyLogin, monitorSolanaWallet, dispatch]);
 
     const logout = useCallback(async () => {
       console.log('[useAuth] Attempting Privy logout...');

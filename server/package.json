@@ -27,6 +27,7 @@
     "@raydium-io/raydium-sdk-v2": "0.1.126-alpha",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.0",
+    "@supabase/supabase-js": "^2.49.4",
     "@turnkey/http": "^3.0.0",
     "@turnkey/sdk-react-native": "^1.0.4",
     "@turnkey/sdk-server": "^3.0.1",

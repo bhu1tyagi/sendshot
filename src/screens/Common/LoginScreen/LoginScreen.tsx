@@ -174,33 +174,36 @@ export default function LoginScreen() {
   // Single animation value for grid scaling
   const gridScaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Immediately check if we're already logged in before any animations
-  // or component mounting logic happens
-  if (isLoggedIn) {
-    console.log('[LoginScreen] User is already logged in, navigating to MainTabs immediately');
-    // Use setTimeout to ensure this happens after initial render
-    setTimeout(() => {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
-    }, 0);
-  }
+  // Track if navigation reset has already happened to prevent duplicates
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     // Start animations
     startAnimations();
 
-    // If already logged in, navigate to MainTabs immediately
-    if (isLoggedIn) {
-      console.log('[LoginScreen] User already logged in, navigating to MainTabs');
-      // Use navigation.reset to avoid having LoginScreen in the navigation stack
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
+    // If already logged in (either on mount or after state change), navigate to MainTabs
+    if (isLoggedIn && !hasNavigated.current) {
+      console.log('[LoginScreen] isLoggedIn changed to true, triggering navigation reset');
+      hasNavigated.current = true;
+      
+      // Use a short delay to allow state updates to finish
+      setTimeout(() => {
+        console.log('[LoginScreen] Executing navigation reset to MainTabs');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
+      }, 100);
     }
-  }, [isLoggedIn, navigation]);
+  }, [isLoggedIn, navigation]); // navigation is stable, isLoggedIn is the key trigger
+
+  // Clean up effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      console.log('[LoginScreen] Component unmounting, cleaning up');
+      hasNavigated.current = true; // Prevent any pending navigation
+    };
+  }, []);
 
   const startAnimations = () => {
     // Circle rotation animation
@@ -411,55 +414,23 @@ export default function LoginScreen() {
   };
 
   const handleWalletConnected = async (info: { provider: string; address: string }) => {
-    console.log('Wallet connected:', info);
+    console.log('[LoginScreen] Wallet connected:', info);
     try {
-      // First check if user already exists
-      try {
-        // Try to create the user entry in the database
-        const response = await axios.post(`${SERVER_BASE_URL}/api/profile/createUser`, {
-          userId: info.address,
-          username: info.address.slice(0, 6), // Initially set to wallet address
-          handle: '@' + info.address.slice(0, 6),
-        });
-        
-        console.log('User creation response:', response.data);
-      } catch (createError: any) {
-        // Log error information once, but don't show response details that might include stack traces
-        console.log('User creation error (might be already existing):', createError?.response?.status || createError.message);
-        
-        // Only show detailed errors in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Create user error details:', {
-            status: createError?.response?.status,
-            message: createError?.response?.data?.message || createError.message
-          });
-        }
-        
-        // Don't log the full error object to prevent duplicate verbose errors in console
-        // Only log critical errors that aren't related to user already existing
-        const isNonCriticalError = 
-          // User already exists (409)
-          createError?.response?.status === 409 || 
-          // Server error but likely just user exists (500 from server but with specific message)
-          (createError?.response?.status === 500 && 
-            (createError?.response?.data?.message?.includes('already exists') || 
-             createError?.response?.data?.message?.includes('duplicate key')));
-        
-        if (!isNonCriticalError) {
-          console.warn('Non-critical error creating user. Login will proceed.');
-        }
-      }
-
-      // Proceed with login regardless of whether user creation succeeded
-      // This way, existing users can still log in
+      // The createUserOnLogin thunk already handles user creation properly
+      // so we don't need to make a separate API call here
+      
+      console.log('[LoginScreen] Dispatching loginSuccess action');
       dispatch(
         loginSuccess({
           provider: info.provider as 'privy' | 'dynamic' | 'turnkey' | 'mwa',
           address: info.address,
         }),
       );
+      
+      // Navigation will be handled by useEffect that listens to isLoggedIn
+      console.log('[LoginScreen] Login action dispatched, useEffect will handle navigation');
     } catch (error) {
-      console.error('Error handling wallet connection:', error);
+      console.error('[LoginScreen] Error handling wallet connection:', error);
       Alert.alert(
         'Connection Error',
         'Successfully connected to wallet but encountered an error proceeding to the app.',
