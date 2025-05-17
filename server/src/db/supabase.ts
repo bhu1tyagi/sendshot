@@ -12,4 +12,12 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+/**
+ * Execute raw SQL using Supabase's RPC functionality
+ * Note: You must create a SQL function in Supabase that can execute this
+ */
+export async function executeRawSql(sql: string) {
+  return supabase.rpc('execute_sql', { sql_string: sql });
+}
+
 export default supabase;

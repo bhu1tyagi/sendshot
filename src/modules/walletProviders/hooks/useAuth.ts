@@ -4,10 +4,11 @@ import {loginSuccess, logoutSuccess, createUserOnLogin} from '../../../shared/st
 import {usePrivyWalletLogic} from '../services/walletProviders/privy';
 import {useCustomization} from '../../../config/CustomizationProvider';
 import {useAppNavigation} from '../../../shared/hooks/useAppNavigation';
-import {useAppSelector} from '../../../shared/hooks/useReduxHooks';
+import {useAppSelector, useAppDispatch} from '../../../shared/hooks/useReduxHooks';
 import {useLoginWithOAuth} from '@privy-io/expo';
 import { StandardWallet } from '../types';
 import { AnyAction } from '@reduxjs/toolkit';
+import { AppDispatch } from '../../../shared/state/store';
 
 /**
  * Summarized usage:
@@ -19,7 +20,7 @@ import { AnyAction } from '@reduxjs/toolkit';
 export function useAuth() {
   const {auth: authConfig} = useCustomization();
   const selectedProvider = authConfig.provider;
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const navigation = useAppNavigation();
   const authState = useAppSelector(state => state.auth);
 
@@ -96,12 +97,12 @@ export function useAuth() {
               username: initialUsername
             }));
             
-            // Also create/update user in database - cast to AnyAction to fix type issue
+            // Also create/update user in database
             dispatch(createUserOnLogin({
               userId: info.address,
               username: initialUsername,
               provider: 'privy'
-            }) as unknown as AnyAction);
+            }));
             
             // REMOVED: navigation.navigate('MainTabs');
             // Let Redux state change handle navigation
@@ -161,12 +162,12 @@ export function useAuth() {
               username: initialUsername
             }));
             
-            // Also create/update user in database - cast to AnyAction to fix type issue
+            // Also create/update user in database
             dispatch(createUserOnLogin({
               userId: info.address,
               username: initialUsername,
               provider: 'privy'
-            }) as unknown as AnyAction);
+            }));
             
             // REMOVED: navigation.navigate('MainTabs');
             // Let Redux state change handle navigation
@@ -208,12 +209,12 @@ export function useAuth() {
                 username: initialUsername
               }));
               
-              // Also create/update user in database - cast to AnyAction to fix type issue
+              // Also create/update user in database
               dispatch(createUserOnLogin({
                 userId: info.address,
                 username: initialUsername,
                 provider: 'privy'
-              }) as unknown as AnyAction);
+              }));
               
               // REMOVED: navigation.navigate('MainTabs');
               // Let Redux state change handle navigation

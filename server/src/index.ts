@@ -13,6 +13,7 @@ import tokenRoutes from './routes/tokenRoutes';
 import userRoutes from './routes/userRoutes';
 import * as UserController from './controllers/userController';
 import { runMigrations, generateMigrationInstructions } from './db/migration';
+import supabase from './db/supabase';
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -80,26 +81,53 @@ app.get('/api/admin/migration-instructions', async (req, res) => {
 setupConnection();
 
 // Start the Express server.
-// Note: We now try connecting to the database and running migrations,
-// but if these fail we log the error and continue to start the server.
 const PORT = process.env.PORT || 8080;
 
-(async function startServer() {
-  // Try to run migrations on startup
+// Helper function to check if database tables exist
+async function checkTablesExist() {
   try {
-    console.log('Attempting to run database migrations...');
-    await runMigrations();
-    console.log('Database migrations completed successfully');
+    // Try to query the users table
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id')
+      .limit(1);
+      
+    if (usersError) throw usersError;
+    
+    // Try to query the tokens table
+    const { data: tokens, error: tokensError } = await supabase
+      .from('tokens')
+      .select('id')
+      .limit(1);
+      
+    if (tokensError) throw tokensError;
+    
+    // If we get here, both tables exist and are accessible
+    return true;
   } catch (error) {
-    console.error('Error running migrations on startup:', error);
-    console.log('Generating migration instructions instead...');
-    try {
-      const instructionsPath = generateMigrationInstructions();
-      console.log(`Please run the SQL manually using the instructions at: ${instructionsPath}`);
-    } catch (err) {
-      console.error('Failed to generate migration instructions:', err);
+    console.warn('Database tables check failed:', error);
+    return false;
+  }
+}
+
+(async function startServer() {
+  // Check database connection and table existence
+  try {
+    console.log('Checking database connection...');
+    const tablesExist = await checkTablesExist();
+    
+    if (tablesExist) {
+      console.log('✅ Database connection successful! Tables already exist.');
+    } else {
+      console.log('⚠️ Database connected but tables may not exist.');
+      console.log('Attempting to run database migrations...');
+      const instructionsPath = await runMigrations();
+      console.log(`Database migration instructions generated at: ${instructionsPath}`);
+      console.log('⚠️ IMPORTANT: You need to manually execute the migrations in your Supabase dashboard!');
     }
-    console.log('Continuing server startup despite migration failure...');
+  } catch (error) {
+    console.error('❌ Database connection error:', error);
+    console.log('Continuing server startup despite database connection issues...');
   }
   
   // Use the HTTP server instead of app.listen
