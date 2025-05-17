@@ -355,6 +355,146 @@ export const createPool = async (
   }
 };
 
+// Add a new interface for token metadata
+interface TokenMetadataParams {
+  tokenName: string;
+  tokenSymbol: string;
+  description: string;
+  imageUri?: string;
+  imageFile?: any;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+}
+
+/**
+ * Upload token metadata and image to storage service
+ */
+export const uploadTokenMetadata = async (params: TokenMetadataParams): Promise<{ 
+  success: boolean;
+  metadataUri?: string;
+  error?: string;
+}> => {
+  try {
+    console.log('Uploading token metadata:', params.tokenName);
+    
+    // Validate required parameters
+    if (!params.tokenName || !params.tokenSymbol || !params.description) {
+      console.error('Missing required metadata fields');
+      return {
+        success: false,
+        error: 'Missing required metadata fields (name, symbol, or description)'
+      };
+    }
+    
+    if (!params.imageUri && !params.imageFile) {
+      console.error('Missing token image');
+      return {
+        success: false,
+        error: 'Token image is required (either file or URL)'
+      };
+    }
+    
+    // Create form data for the upload
+    const formData = new FormData();
+    formData.append('tokenName', params.tokenName);
+    formData.append('tokenSymbol', params.tokenSymbol);
+    formData.append('description', params.description);
+    
+    if (params.twitter) {
+      formData.append('twitter', params.twitter);
+    }
+    
+    if (params.telegram) {
+      formData.append('telegram', params.telegram);
+    }
+    
+    if (params.website) {
+      formData.append('website', params.website);
+    }
+    
+    // Handle image upload - either file or URL
+    if (params.imageFile) {
+      console.log('Using image file from device');
+      // Extract file name and type from URI
+      const uriParts = params.imageFile.uri.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      // Create file object for upload
+      const file = {
+        uri: params.imageFile.uri,
+        name: `image.${fileType}`,
+        type: `image/${fileType}`
+      };
+      
+      console.log('Image file prepared for upload');
+      
+      // @ts-ignore - FormData append with file works in React Native
+      formData.append('image', file);
+    } else if (params.imageUri) {
+      console.log('Using image URL:', params.imageUri.substring(0, 50) + (params.imageUri.length > 50 ? '...' : ''));
+      formData.append('imageUrl', params.imageUri);
+    }
+    
+    // Log request
+    const uploadUrl = `${API_BASE_URL}/meteora/uploadMetadata`;
+    console.log(`Sending metadata to: ${uploadUrl}`);
+    
+    // Make API call to upload endpoint
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    // Log response status
+    console.log('Server response status:', response.status);
+    
+    if (!response.ok) {
+      let errorMessage = `Upload failed with status ${response.status}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (parseError) {
+        // If we can't parse the error response as JSON, use the status code
+        console.error('Could not parse error response as JSON:', parseError);
+      }
+      
+      console.error('Server returned error:', errorMessage);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+    
+    // Parse response
+    const result = await response.json();
+    
+    console.log('Metadata upload result:', result);
+    
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || 'Failed to upload metadata'
+      };
+    }
+    
+    return {
+      success: true,
+      metadataUri: result.metadataUri
+    };
+  } catch (error) {
+    console.error('Error uploading token metadata:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error uploading metadata'
+    };
+  }
+};
+
 /**
  * Helper function to create a Meteora DBC token with default parameters
  * This creates a new token with bonding curve pool for buying/selling.
@@ -367,6 +507,7 @@ export const createTokenWithCurve = async (
     targetMarketCap: number;
     tokenSupply: number;
     buyAmount?: number; // Optional amount to buy immediately after creation
+    metadataUri?: string; // Token metadata URI from IPFS or similar
     website?: string; // Optional website for token metadata
     logo?: string; // Optional logo URL for token metadata
   },
@@ -421,7 +562,7 @@ export const createTokenWithCurve = async (
     onStatusUpdate?.(`Config created with address ${configAddress}`);
     
     let poolResult;
-    let txId;
+    let txId = curveResult.txId;
     
     // If buy amount is specified, use createPoolAndBuy to optimize the flow
     if (params.buyAmount && params.buyAmount > 0) {
@@ -439,7 +580,7 @@ export const createTokenWithCurve = async (
           quoteTokenType: 0, // SPL
           name: params.tokenName,
           symbol: params.tokenSymbol,
-          uri: params.logo || '', // Use the logo URL as the URI
+          uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
           payer: wallet.publicKey.toString(),
           poolCreator: wallet.publicKey.toString()
         },
@@ -478,7 +619,7 @@ export const createTokenWithCurve = async (
         quoteTokenType: 0, // SPL
         name: params.tokenName,
         symbol: params.tokenSymbol,
-        uri: params.logo || '', // Use the logo URL as the URI
+        uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
         payer: wallet.publicKey.toString(),
         poolCreator: wallet.publicKey.toString()
       }, connection, wallet, onStatusUpdate);
