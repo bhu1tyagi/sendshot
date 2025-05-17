@@ -6,7 +6,7 @@ import styles from '../../../../screens/Common/LoginScreen/LoginScreen.styles';
 import { useCustomization } from '../../../../config/CustomizationProvider';
 import { useAppNavigation } from '../../../../shared/hooks/useAppNavigation';
 import { useAppDispatch } from '../../../../shared/hooks/useReduxHooks';
-import { loginSuccess } from '../../../../shared/state/auth/reducer';
+import { loginSuccess, loginOrCreateUser } from '../../../../shared/state/auth/reducer';
 import COLORS from '../../../../assets/colors';
 
 import type { Web3MobileWallet } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
@@ -125,10 +125,9 @@ const EmbeddedWalletAuth: React.FC<EmbeddedWalletAuthProps> = ({
 
         console.log('MWA connection successful, address:', base58Address);
 
-        // First dispatch the loginSuccess action directly
-        // This ensures the address is immediately available in the Redux store
-        dispatch(
-          loginSuccess({
+        // Use the new combined login/create action
+        await dispatch(
+          loginOrCreateUser({
             provider: 'mwa',
             address: base58Address,
           })

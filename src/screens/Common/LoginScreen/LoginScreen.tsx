@@ -7,12 +7,13 @@ import * as Application from 'expo-application';
 import * as Linking from 'expo-linking';
 import Icons from '@/assets/svgs/index';
 import styles from './LoginScreen.styles';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import EmbeddedWalletAuth from '@/modules/walletProviders/components/wallet/EmbeddedWallet';
-import { loginSuccess } from '@/shared/state/auth/reducer';
+import { loginOrCreateUser } from '@/shared/state/auth/reducer';
 import { RootState } from '@/shared/state/store';
 import { useCustomization } from '@/config/CustomizationProvider';
+import { useAppDispatch } from '@/shared/hooks/useReduxHooks';
 import axios from 'axios';
 import { SERVER_URL } from '@env';
 
@@ -90,7 +91,7 @@ const SVG_CONFIG = {
 
 export default function LoginScreen() {
   const navigation = useAppNavigation();
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
   const { auth: authConfig } = useCustomization();
   
@@ -416,12 +417,10 @@ export default function LoginScreen() {
   const handleWalletConnected = async (info: { provider: string; address: string }) => {
     console.log('[LoginScreen] Wallet connected:', info);
     try {
-      // The createUserOnLogin thunk already handles user creation properly
-      // so we don't need to make a separate API call here
-      
-      console.log('[LoginScreen] Dispatching loginSuccess action');
-      dispatch(
-        loginSuccess({
+      // Use the new loginOrCreateUser thunk to check if user exists and fetch/create accordingly
+      console.log('[LoginScreen] Dispatching loginOrCreateUser action');
+      await dispatch(
+        loginOrCreateUser({
           provider: info.provider as 'privy' | 'dynamic' | 'turnkey' | 'mwa',
           address: info.address,
         }),
