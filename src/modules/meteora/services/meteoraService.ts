@@ -528,11 +528,11 @@ export const createTokenWithCurve = async (
       tokenBaseDecimal: 9, // Standard token decimals
       tokenQuoteDecimal: 9, // SOL has 9 decimals
       lockedVesting: {
-        amountPerPeriod: new BN(0),
-        cliffDurationFromMigrationTime: new BN(0),
-        frequency: new BN(0),
-        numberOfPeriod: new BN(0),
-        cliffUnlockAmount: new BN(0),
+        amountPerPeriod: "0",
+        cliffDurationFromMigrationTime: "0",
+        frequency: "0",
+        numberOfPeriod: "0",
+        cliffUnlockAmount: "0",
       },
       feeSchedulerParam: {
         numberOfPeriod: 0,
@@ -581,6 +581,7 @@ export const createTokenWithCurve = async (
           name: params.tokenName,
           symbol: params.tokenSymbol,
           uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
+          baseMint: '', // Will be created by the API
           payer: wallet.publicKey.toString(),
           poolCreator: wallet.publicKey.toString()
         },
@@ -620,8 +621,7 @@ export const createTokenWithCurve = async (
         name: params.tokenName,
         symbol: params.tokenSymbol,
         uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
-        payer: wallet.publicKey.toString(),
-        poolCreator: wallet.publicKey.toString()
+        baseMint: '' // This will be created by the API call
       }, connection, wallet, onStatusUpdate);
       
       txId = poolResult.txId;
@@ -703,7 +703,7 @@ export const createPoolAndBuy = async (
       createPoolParam: {
         payer: wallet.publicKey.toString(),
         poolCreator: wallet.publicKey.toString(),
-        baseMint: params.createPoolParam.baseMint,
+        baseMint: params.createPoolParam.baseMint || '', // Provide default empty string
         quoteMint: params.createPoolParam.quoteMint,
         config: params.createPoolParam.config,
         baseTokenType: params.createPoolParam.baseTokenType,
