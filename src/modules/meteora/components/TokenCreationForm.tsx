@@ -247,7 +247,15 @@ export default function TokenCreationForm({
                 targetMarketCap: parseFloat(migrationMarketCap),
                 tokenSupply: parseInt(tokenSupply),
                 buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
-                metadataUri: uri
+                metadataUri: uri,
+                baseFeeBps: parseInt(baseFeeBps),
+                dynamicFeeEnabled,
+                collectFeeBoth,
+                migrationFeeOption: selectedMigrationFee,
+                partnerLpPercentage: parseInt(partnerLpPercentage),
+                creatorLpPercentage: parseInt(creatorLpPercentage),
+                partnerLockedLpPercentage: parseInt(partnerLockedLpPercentage),
+                creatorLockedLpPercentage: parseInt(creatorLockedLpPercentage)
             });
 
             // Use the improved createTokenWithCurve function with metadata URI
@@ -261,7 +269,16 @@ export default function TokenCreationForm({
                     buyAmount: buyOnCreate ? parseFloat(buyAmount) : undefined,
                     metadataUri: uri,
                     website: tokenWebsite,
-                    logo: imageUri || tokenLogo
+                    logo: imageUri || tokenLogo,
+                    // Pass the advanced settings
+                    baseFeeBps: parseInt(baseFeeBps),
+                    dynamicFeeEnabled,
+                    collectFeeBoth,
+                    migrationFeeOption: selectedMigrationFee,
+                    partnerLpPercentage: parseInt(partnerLpPercentage),
+                    creatorLpPercentage: parseInt(creatorLpPercentage),
+                    partnerLockedLpPercentage: parseInt(partnerLockedLpPercentage),
+                    creatorLockedLpPercentage: parseInt(creatorLockedLpPercentage)
                 },
                 connection,
                 wallet,
@@ -647,6 +664,9 @@ export default function TokenCreationForm({
                     migrationMarketCap={parsedMigrationMarketCap}
                     tokenSupply={parsedTokenSupply}
                     baseFeeBps={Number(baseFeeBps)}
+                    dynamicFeeEnabled={dynamicFeeEnabled}
+                    collectFeeBoth={collectFeeBoth}
+                    migrationFeeOption={selectedMigrationFee}
                 />
 
                 <TouchableOpacity
