@@ -1,8 +1,9 @@
 // File: src/modules/pumpFun/hooks/usePumpFun.ts
 
-import {useCallback} from 'react';
-import {Alert} from 'react-native';
-import {useWallet} from '../../walletProviders/hooks/useWallet';
+import { useCallback } from 'react';
+import { Alert } from 'react-native';
+import { useAuth } from '../../walletProviders/hooks/useAuth';
+import { useWallet } from '../../walletProviders/hooks/useWallet';
 import {
   buyTokenViaPumpfun,
   sellTokenViaPumpfun,
@@ -10,21 +11,17 @@ import {
 } from '../services/pumpfunService';
 import { TransactionService } from '../../walletProviders/services/transaction/transactionService';
 import { PumpfunBuyParams, PumpfunSellParams, PumpfunLaunchParams } from '../types';
-import { useAuth } from '../../walletProviders/hooks/useAuth';
 import { verifyToken, VerifyTokenParams } from '../../../shared/services/rugCheckService';
-import { TokenService } from '@/shared/state/tokens';
-import { useAppDispatch } from '@/shared/hooks/useReduxHooks';
+import { registerPumpfunToken } from '../services/tokenIntegration';
 
 /**
  * Hook for interacting with Pump.fun platform
  * @returns Methods for buying, selling, and launching tokens on Pump.fun
  */
 export function usePumpFun() {
-  const {wallet, solanaWallet} = useAuth();
+  const { wallet, solanaWallet } = useAuth();
   // Also use the new useWallet hook which provides standard transaction methods
-  const {publicKey, address, connected, signMessage} = useWallet();
-  // Add dispatch for token registration
-  const dispatch = useAppDispatch();
+  const { publicKey, address, connected, signMessage } = useWallet();
   
   console.log("[usePumpFun] Wallet:", {
     hasWallet: !!wallet,
@@ -292,37 +289,39 @@ export function usePumpFun() {
         };
         
         const result = await createAndBuyTokenViaPumpfun(launchParams);
+        console.log('[usePumpfun.launchToken] ///////////////// Result:', result);
         
         if (result) {
           // Show success notification via TransactionService
           TransactionService.showSuccess(result.txSignature, 'token');
           
-          // Register the token in our centralized service
-          try {
-            onStatusUpdate?.('Registering token in database...');
-            
-            // Standard token supply for Pumpfun is 1 billion tokens
-            const tokenSupply = '1000000000';
-            
-            // Calculate initial price (solAmount / tokenSupply)
-            const initialPrice = solAmount / parseInt(tokenSupply);
-            
-            // Register the token using our centralized service
-            await TokenService.registerToken({
-              address: result.mint,
-              name: tokenName,
-              symbol: tokenSymbol,
-              creatorId: userPublicKey,
-              initialPrice: initialPrice,
-              totalSupply: tokenSupply,
-              protocolType: 'pumpfun',
-              logoURI: imageUri,
-            }, dispatch);
-            
+          // Register the token in our database
+          onStatusUpdate?.('Registering token in the database...');
+          
+          // Ensure we have a valid creatorId
+          const validCreatorId = userPublicKey || address || wallet?.publicKey || solanaWallet?.wallets?.[0]?.publicKey;
+          
+          if (!validCreatorId) {
+            console.error('[usePumpfun.launchToken] No valid creator ID found for token registration');
+            onStatusUpdate?.('Note: Token created on-chain but database registration failed (no valid creator ID).');
+            return result;
+          }
+          
+          const registerResult = await registerPumpfunToken({
+            address: result.mint,
+            name: tokenName,
+            symbol: tokenSymbol,
+            metadataURI: result.metadataUri || imageUri,
+            creatorId: validCreatorId,
+            initialPrice: solAmount,
+            totalSupply: "1000000000", // Default supply for PumpFun tokens
+            holders: 1, // Creator is the first holder
+          });
+          
+          if (registerResult) {
             onStatusUpdate?.('Token registered successfully!');
-          } catch (registerError) {
-            console.error('[usePumpfun.launchToken] Error registering token:', registerError);
-            onStatusUpdate?.('Token created on-chain but registration failed. Please try again later.');
+          } else {
+            onStatusUpdate?.('Note: Token created on-chain but registration failed.');
           }
           
           // If verification was requested, submit the token for verification
@@ -355,7 +354,7 @@ export function usePumpFun() {
         throw error; // Re-throw for component-level handling
       }
     },
-    [wallet, solanaWallet, address, submitTokenForVerification, dispatch],
+    [wallet, solanaWallet, address, submitTokenForVerification],
   );
 
   return {

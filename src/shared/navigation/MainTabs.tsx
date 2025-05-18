@@ -13,7 +13,6 @@ import AnimatedTabIcon from './AnimatedTabIcon';
 import ModuleScreen from '@/screens/Common/LaunhcModulesScreen/LaunchModules';
 import HoldingsScreen from '@/screens/SampleUI/Holdings/HoldingsScreen';
 import TokenFeedScreen from '@/screens/SampleUI/Tokens/TokenFeedScreen';
-import TokensScreen from '@/screens/Common/TokensScreen/TokensScreen';
 
 // Platform icons matching PlatformSelectionScreen
 const platformIcons = {
@@ -222,35 +221,6 @@ export default function MainTabs() {
                   Icons.SwapNavIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
-                  }>
-                }
-                style={iconStyle}
-              />
-            ),
-          }}
-        />
-
-        {/* Tokens Screen - Add this screen */}
-        <Tab.Screen
-          name="Tokens"
-          component={TokensScreen}
-          options={{
-            tabBarIcon: ({ focused, size }) => (
-              <AnimatedTabIcon
-                focused={focused}
-                size={size * 1.2}
-                icon={
-                  Icons.HomeIcon as React.ComponentType<{
-                    width: number;
-                    height: number;
-                    color?: string;
-                  }>
-                }
-                iconSelected={
-                  Icons.HomeIconSelected as React.ComponentType<{
-                    width: number;
-                    height: number;
-                    color?: string;
                   }>
                 }
                 style={iconStyle}

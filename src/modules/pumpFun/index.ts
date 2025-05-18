@@ -31,6 +31,7 @@ export {
   createAndBuyTokenViaPumpfun,
 } from './services/pumpfunService';
 export { PumpSwapServices };
+export { registerPumpfunToken } from './services/tokenIntegration';
 
 // Utils
 export {

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -20,7 +20,8 @@ import { useNavigation } from '@react-navigation/native';
 import Icons from '../../../assets/svgs';
 import COLORS from '@/assets/colors';
 import { AppHeader } from '@/core/sharedUI';
-import { RootState } from '@/shared/state/store';
+import { RootState, AppDispatch } from '@/shared/state/store';
+import { fetchUserTokens } from '@/shared/state/tokens/reducer';
 
 // Launchpad modules
 const modules = [
@@ -185,11 +186,18 @@ const androidStyles = StyleSheet.create({
 
 export default function ModuleScreen() {
   const navigation = useNavigation();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { isLoggedIn, address } = useSelector((state: RootState) => state.auth);
   const auth = useAuth();
   
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Fetch user tokens when logged in
+  useEffect(() => {
+    if (isLoggedIn && address) {
+      dispatch(fetchUserTokens(address));
+    }
+  }, [isLoggedIn, address, dispatch]);
 
   const handlePress = useCallback((module: any) => {
     if (!isLoggedIn) {

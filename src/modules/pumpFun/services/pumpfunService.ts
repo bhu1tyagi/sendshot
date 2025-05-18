@@ -179,6 +179,7 @@ export async function createAndBuyTokenViaPumpfun({
     return {
       mint: mint.publicKey.toString(),
       txSignature,
+      metadataUri,
     };
   } catch (err: any) {
     console.error('createAndBuyTokenViaPumpfun error:', err);

@@ -14,6 +14,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 import { Buffer } from 'buffer';
 import { SERVER_URL } from '@env';
+import { registerMeteoraToken } from './tokenIntegration';
 
 // API base URL - Use local server that implements the SDK
 const API_BASE_URL = `${SERVER_URL || 'http://localhost:8080'}/api`;
@@ -343,6 +344,46 @@ export const createPool = async (
     
     onStatusUpdate?.('Pool creation transaction sent! TX ID: ' + txSignature);
 
+    // Register the token in our database
+    try {
+      onStatusUpdate?.('Registering token in database...');
+      
+      // Extract token info from parameters
+      const baseMintAddress = result.baseMintAddress;
+      
+      if (baseMintAddress && params.name && params.symbol) {
+        // Use a fixed initial price since we don't have market cap or supply info
+        const initialPrice = 0.001; // Default initial price
+        
+        const registerResult = await registerMeteoraToken({
+          address: baseMintAddress,
+          name: params.name,
+          symbol: params.symbol,
+          metadataURI: params.uri,
+          creatorId: wallet.publicKey.toString(),
+          initialPrice: initialPrice,
+          totalSupply: "1000000000", // Default supply
+          holders: 1, // Creator is the first holder
+        });
+        
+        if (registerResult) {
+          onStatusUpdate?.('Token registered in database successfully!');
+        } else {
+          onStatusUpdate?.('Note: Pool created on-chain but database registration failed.');
+        }
+      } else {
+        console.error('Cannot register token - missing required data:', { 
+          hasBaseMint: !!baseMintAddress, 
+          hasName: !!params.name, 
+          hasSymbol: !!params.symbol 
+        });
+        onStatusUpdate?.('Note: Token created but missing data for registration.');
+      }
+    } catch (registerError) {
+      console.error('Token registration error:', registerError);
+      onStatusUpdate?.('Note: Token created on-chain but database registration failed.');
+    }
+
     return {
       txId: txSignature,
       poolAddress: result.poolAddress || '',
@@ -528,11 +569,11 @@ export const createTokenWithCurve = async (
       tokenBaseDecimal: 9, // Standard token decimals
       tokenQuoteDecimal: 9, // SOL has 9 decimals
       lockedVesting: {
-        amountPerPeriod: new BN(0),
-        cliffDurationFromMigrationTime: new BN(0),
-        frequency: new BN(0),
-        numberOfPeriod: new BN(0),
-        cliffUnlockAmount: new BN(0),
+        amountPerPeriod: "0",
+        cliffDurationFromMigrationTime: "0",
+        frequency: "0",
+        numberOfPeriod: "0",
+        cliffUnlockAmount: "0",
       },
       feeSchedulerParam: {
         numberOfPeriod: 0,
@@ -581,6 +622,7 @@ export const createTokenWithCurve = async (
           name: params.tokenName,
           symbol: params.tokenSymbol,
           uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
+          baseMint: '', // Will be created by the API
           payer: wallet.publicKey.toString(),
           poolCreator: wallet.publicKey.toString()
         },
@@ -620,8 +662,7 @@ export const createTokenWithCurve = async (
         name: params.tokenName,
         symbol: params.tokenSymbol,
         uri: params.metadataUri || params.logo || '', // Use the metadata URI if available
-        payer: wallet.publicKey.toString(),
-        poolCreator: wallet.publicKey.toString()
+        baseMint: '' // This will be created by the API call
       }, connection, wallet, onStatusUpdate);
       
       txId = poolResult.txId;
@@ -703,7 +744,7 @@ export const createPoolAndBuy = async (
       createPoolParam: {
         payer: wallet.publicKey.toString(),
         poolCreator: wallet.publicKey.toString(),
-        baseMint: params.createPoolParam.baseMint,
+        baseMint: params.createPoolParam.baseMint || '', // Provide default empty string
         quoteMint: params.createPoolParam.quoteMint,
         config: params.createPoolParam.config,
         baseTokenType: params.createPoolParam.baseTokenType,
@@ -731,6 +772,53 @@ export const createPoolAndBuy = async (
     );
     
     onStatusUpdate?.('Pool created and tokens purchased successfully!');
+
+    // Register the token in our database
+    try {
+      onStatusUpdate?.('Registering token in database...');
+      
+      // Extract token info from parameters
+      const name = params.createPoolParam.name;
+      const symbol = params.createPoolParam.symbol;
+      const baseMintAddress = result.baseMintAddress;
+      
+      if (baseMintAddress && name && symbol) {
+        // Calculate an initial price (estimate based on buy amount)
+        const buyAmountInSol = typeof params.buyAmount === 'string' 
+          ? parseFloat(params.buyAmount) / 1e9 // Convert from lamports to SOL
+          : parseFloat(String(params.buyAmount)) / 1e9;
+          
+        // Default to a reasonable value if we can't calculate
+        const initialPrice = buyAmountInSol > 0 ? buyAmountInSol / 1000 : 0.001;
+        
+        const registerResult = await registerMeteoraToken({
+          address: baseMintAddress,
+          name: name,
+          symbol: symbol,
+          metadataURI: params.createPoolParam.uri,
+          creatorId: wallet.publicKey.toString(),
+          initialPrice: initialPrice,
+          totalSupply: "1000000000", // Default supply
+          holders: 1, // Creator is the first holder
+        });
+        
+        if (registerResult) {
+          onStatusUpdate?.('Token registered in database successfully!');
+        } else {
+          onStatusUpdate?.('Note: Pool created on-chain but database registration failed.');
+        }
+      } else {
+        console.error('Cannot register token - missing required data:', { 
+          hasBaseMint: !!baseMintAddress, 
+          hasName: !!name, 
+          hasSymbol: !!symbol 
+        });
+        onStatusUpdate?.('Note: Token created but missing data for registration.');
+      }
+    } catch (registerError) {
+      console.error('Token registration error:', registerError);
+      onStatusUpdate?.('Note: Token created on-chain but database registration failed.');
+    }
 
     return {
       txId: txSignature,
@@ -1108,4 +1196,4 @@ export const removeLiquidity = async (
     onStatusUpdate?.('Removing liquidity failed');
     throw error;
   }
-}; 
+};

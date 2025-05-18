@@ -172,16 +172,36 @@ const tokensSlice = createSlice({
     });
     
     // createToken
+    builder.addCase(createToken.pending, (state) => {
+      state.loading = true;
+      state.error = null;
+    });
+    
     builder.addCase(createToken.fulfilled, (state, action) => {
+      state.loading = false;
       const token = action.payload;
-      // Add to allTokens
-      state.allTokens.push(token);
-      // Add to userTokens if the creator's array exists
-      if (state.userTokens[token.creatorId]) {
-        state.userTokens[token.creatorId].push(token);
-      } else {
-        state.userTokens[token.creatorId] = [token];
+      
+      // Add safety check: only proceed if token exists and has required properties
+      if (token && token.id) {
+        // Add to allTokens
+        state.allTokens.push(token);
+        
+        // Make sure creatorId exists before trying to update userTokens
+        if (token.creatorId) {
+          // Add to userTokens if the creator's array exists
+          if (state.userTokens[token.creatorId]) {
+            state.userTokens[token.creatorId].push(token);
+          } else {
+            state.userTokens[token.creatorId] = [token];
+          }
+        }
       }
+    });
+    
+    builder.addCase(createToken.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.payload as string || action.error.message || 'Failed to create token';
+      console.error('Token creation failed:', state.error);
     });
     
     // updateToken

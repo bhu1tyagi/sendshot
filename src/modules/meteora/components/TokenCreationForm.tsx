@@ -30,9 +30,6 @@ import { Connection } from '@solana/web3.js';
 import { useWallet } from '@/modules/walletProviders/hooks/useWallet';
 import BN from 'bn.js';
 import { HELIUS_STAKED_URL } from '@env';
-import { useAppDispatch } from '@/shared/hooks/useReduxHooks';
-import { TokenService } from '@/shared/state/tokens';
-import { useAppSelector } from '@/shared/hooks/useReduxHooks';
 
 interface TokenCreationFormProps {
     walletAddress: string;
@@ -275,33 +272,6 @@ export default function TokenCreationForm({
 
             if (onTokenCreated && result.baseMintAddress) {
                 onTokenCreated(result.baseMintAddress, result.txId);
-            }
-
-            // After successful token creation, register it in our centralized service
-            const dispatch = useAppDispatch();
-            const userId = useAppSelector(state => state.auth.address);
-            
-            if (userId && result.baseMintAddress) {
-                try {
-                    setStatusMessage('Registering token in database...');
-                    
-                    // Register the token using our centralized service
-                    await TokenService.registerToken({
-                        address: result.baseMintAddress,
-                        name: tokenName,
-                        symbol: tokenSymbol,
-                        creatorId: userId,
-                        initialPrice: parseFloat(initialMarketCap) / parseInt(tokenSupply),
-                        totalSupply: tokenSupply,
-                        protocolType: 'meteora',
-                        logoURI: tokenLogo || undefined,
-                    }, dispatch);
-                    
-                    setStatusMessage('Token registered successfully!');
-                } catch (registerError) {
-                    console.error('Error registering token:', registerError);
-                    setStatusMessage('Token created on-chain but registration failed. Please try again later.');
-                }
             }
         } catch (err) {
             console.error('Error creating token:', err);
@@ -1219,4 +1189,4 @@ const styles = StyleSheet.create({
     disabledButton: {
         opacity: 0.5,
     },
-}); 
+});

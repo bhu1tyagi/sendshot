@@ -9,6 +9,7 @@ import {CLUSTER, HELIUS_STAKED_URL, SERVER_URL} from '@env';
 import {TransactionService} from '../../walletProviders/services/transaction/transactionService';
 import {TokenInfo} from '../../dataModule/types/tokenTypes';
 import {Buffer} from 'buffer';
+import { registerRaydiumToken } from './tokenIntegration';
 
 // Constants
 const DEFAULT_SLIPPAGE_BPS = 300; // 2% default slippage for Raydium
@@ -481,6 +482,38 @@ export class RaydiumService {
       );
       TransactionService.showSuccess(signature, 'token');
       safeUpdateStatus('Token launched successfully!');
+
+      // Register the token in our database
+      try {
+        safeUpdateStatus('Registering token in database...');
+        
+        // Calculate initial price based on solRaised and tokenSupply
+        const totalSupply = cleanSupply || "1000000000";
+        const solRaised = configData?.solRaised || "85";
+        const solRaisedNum = parseFloat(solRaised);
+        // Simplified calculation - in reality this would be more complex based on bonding curve
+        const initialPrice = solRaisedNum / (parseInt(totalSupply) / 1000000);
+        
+        const registerResult = await registerRaydiumToken({
+          address: launchData.mintAddress,
+          name: tokenData.name,
+          symbol: tokenData.symbol,
+          metadataURI: metadataUri || tokenData.uri || tokenData.imageData, // Use metadataUri or tokenData.uri, fallback to imageData
+          creatorId: walletPublicKey.toString(),
+          initialPrice: initialPrice,
+          totalSupply: totalSupply,
+          holders: 1, // Creator is the first holder
+        });
+        
+        if (registerResult) {
+          safeUpdateStatus('Token registered in database successfully!');
+        } else {
+          safeUpdateStatus('Note: Token created on-chain but database registration failed.');
+        }
+      } catch (registerError) {
+        console.error('[RaydiumService] Token registration error:', registerError);
+        safeUpdateStatus('Note: Token created on-chain but database registration failed.');
+      }
 
       return {
         success: true,

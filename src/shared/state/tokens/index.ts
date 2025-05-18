@@ -6,15 +6,12 @@ import tokensReducer, {
   TokenData
 } from './reducer';
 
-import { TokenService } from './services';
-
 export {
   fetchUserTokens,
   fetchAllTokens,
   createToken,
   updateToken,
-  TokenData,
-  TokenService,
+  TokenData
 };
 
 export default tokensReducer; 

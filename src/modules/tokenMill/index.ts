@@ -23,6 +23,7 @@ export {
   fundMarket,
   setBondingCurve
 } from './services/tokenMillService';
+export { registerTokenMillToken } from './services/tokenIntegration';
 
 // Export types
 export * from './types';

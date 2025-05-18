@@ -17,7 +17,7 @@ import {manipulateAsync, SaveFormat} from 'expo-image-manipulator';
 
 import {useAuth} from '../../walletProviders/hooks/useAuth';
 import {useWallet} from '../../walletProviders/hooks/useWallet';
-import {useAppSelector, useAppDispatch} from '@/shared/hooks/useReduxHooks';
+import {useAppSelector} from '@/shared/hooks/useReduxHooks';
 import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
 import LaunchlabsLaunchSection, {
@@ -28,7 +28,6 @@ import {AppHeader} from '@/core/sharedUI';
 import {RaydiumService, LaunchpadConfigData, LaunchpadTokenData} from '../services/raydiumService';
 import {CLUSTER, HELIUS_STAKED_URL} from '@env';
 import {ENDPOINTS} from '@/config/constants';
-import {TokenService} from '@/shared/state/tokens';
 
 export default function LaunchlabsScreen() {
   const {solanaWallet} = useAuth();
@@ -223,8 +222,6 @@ export default function LaunchlabsScreen() {
 
       setLoading(true);
       setStatus('Creating token with LaunchLab...');
-      
-      const dispatch = useAppDispatch();
 
       try {
         // Use the image URI directly
@@ -283,44 +280,6 @@ export default function LaunchlabsScreen() {
         );
 
         if (result.success) {
-          // Register the token in our centralized service
-          if (result.mintAddress) {
-            try {
-              setStatus('Registering token in database...');
-              
-              // Parse token supply from configData
-              let tokenSupply = '1000000000'; // Default to 1 billion tokens
-              if (configData.tokenSupply) {
-                tokenSupply = configData.tokenSupply.replace(/,/g, '');
-              }
-              
-              // Calculate initial price
-              let initialPrice = 0;
-              if (configData.solRaised) {
-                const solRaised = parseFloat(configData.solRaised.replace(/,/g, ''));
-                const supply = parseFloat(tokenSupply);
-                initialPrice = solRaised / supply;
-              }
-              
-              // Register the token using our centralized service
-              await TokenService.registerToken({
-                address: result.mintAddress,
-                name: tokenData.name,
-                symbol: tokenData.symbol,
-                creatorId: userPublicKey,
-                initialPrice: initialPrice,
-                totalSupply: tokenSupply,
-                protocolType: 'raydium',
-                logoURI: tokenData.imageUri || undefined,
-              }, dispatch);
-              
-              setStatus('Token registered successfully!');
-            } catch (registerError) {
-              console.error('[LaunchlabsScreen] Error registering token:', registerError);
-              setStatus('Token created on-chain but registration failed. Please try again later.');
-            }
-          }
-        
           Alert.alert(
             'Success',
             `Token created with LaunchLab!\nToken address: ${result.mintAddress}\nPool ID: ${result.poolId}`,
