@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -26,6 +26,41 @@ import COLORS from '@/assets/colors';
 
 const { width } = Dimensions.get('window');
 
+// Async helper function (copied and adapted)
+async function extractActualImageUrl(metadataValue?: string): Promise<string | undefined> {
+    if (!metadataValue) return undefined;
+    let contentToParse = metadataValue;
+    if (metadataValue.startsWith('http')) {
+        try {
+            const response = await fetch(metadataValue);
+            if (!response.ok) {
+                console.error(`Failed to fetch: ${response.statusText}`);
+                contentToParse = metadataValue;
+            } else {
+                contentToParse = await response.text();
+            }
+        } catch (fetchError) {
+            console.error(`Fetch error: ${fetchError}`);
+            contentToParse = metadataValue;
+        }
+    }
+    try {
+        const jsonData = JSON.parse(contentToParse);
+        if (jsonData && typeof jsonData.image === 'string' && jsonData.image.startsWith('http')) {
+            return jsonData.image;
+        }
+    } catch (jsonError) {
+        const imageMatch = contentToParse.match(/"image"\s*:\s*"([^"]+)"/);
+        if (imageMatch && imageMatch[1] && imageMatch[1].startsWith('http')) {
+            return imageMatch[1];
+        }
+    }
+    if (metadataValue.startsWith('http') && /\.(jpeg|jpg|gif|png|webp)$/i.test(metadataValue)) {
+        return metadataValue;
+    }
+    return undefined;
+}
+
 const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
     visible,
     onClose,
@@ -38,7 +73,7 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
         tokenSecurity,
         marketData,
         tradeData,
-        loading,
+        loading: detailsLoading,
         selectedTimeframe,
         handleTimeframeChange,
         getTimestamps
@@ -46,6 +81,35 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
         tokenAddress: token.address,
         visible
     });
+
+    const [resolvedImageUrl, setResolvedImageUrl] = useState<string | undefined>(undefined);
+    const [isImageLoading, setIsImageLoading] = useState(true);
+
+    useEffect(() => {
+        if (!token) return;
+        let isActive = true;
+        setIsImageLoading(true);
+
+        async function loadImage() {
+            let imageUrl = await extractActualImageUrl(token.metadataURI);
+            if (!imageUrl && token.logoURI?.startsWith('http')) {
+                imageUrl = token.logoURI;
+            }
+            if (isActive) {
+                setResolvedImageUrl(imageUrl);
+                setIsImageLoading(false);
+            }
+        }
+
+        if (visible) { // Only load image if sheet is visible
+            loadImage();
+        }
+
+        return () => { isActive = false; };
+    }, [token, visible]); // Rerun if token or visibility changes
+
+    // Combine detailsLoading (from useTokenDetails) and isImageLoading
+    const isLoading = detailsLoading || isImageLoading;
 
     return (
         <Modal
@@ -66,11 +130,17 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                 <ScrollView style={styles.content}>
                     {/* Token Header */}
                     <View style={styles.header}>
-                        <Image
-                            source={{ uri: token.logoURI }}
-                            style={styles.tokenLogo}
-                            defaultSource={require('@/assets/images/SENDlogo.png')}
-                        />
+                        {isImageLoading ? (
+                            <View style={[styles.tokenLogo, styles.logoPlaceholder]}><ActivityIndicator size="small" color={COLORS.brandPrimary} /></View>
+                        ) : resolvedImageUrl ? (
+                            <Image
+                                source={{ uri: resolvedImageUrl }}
+                                style={styles.tokenLogo}
+                                defaultSource={require('@/assets/images/SENDlogo.png')}
+                            />
+                        ) : (
+                            <View style={[styles.tokenLogo, styles.logoPlaceholder]}><Text style={styles.logoPlaceholderText}>{token.symbol[0] || '?'}</Text></View>
+                        )}
                         <View style={styles.tokenInfo}>
                             <Text style={styles.tokenName}>{token.name}</Text>
                             <Text style={styles.tokenSymbol}>{token.symbol}</Text>
@@ -79,17 +149,17 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
 
                     {/* Price Information */}
                     <View style={styles.priceContainer}>
-                        <Text style={styles.price}>${formatPrice(token.price)}</Text>
+                        <Text style={styles.price}>${formatPrice(token.price ?? 0)}</Text>
                         <View style={styles.priceChangeContainer}>
                             <Text style={[
                                 styles.priceChangeAmount,
-                                { color: token.priceChange24h && token.priceChange24h >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
+                                { color: (token.priceChange24h ?? 0) >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
                             ]}>
-                                {formatDollarChange(token.price, token.priceChange24h)}
+                                {formatDollarChange(token.price ?? 0, token.priceChange24h)}
                             </Text>
                             <View style={[
                                 styles.percentageBox,
-                                { backgroundColor: token.priceChange24h && token.priceChange24h >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
+                                { backgroundColor: (token.priceChange24h ?? 0) >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
                             ]}>
                                 <Text style={styles.percentageText}>
                                     {formatPriceChange(token.priceChange24h)}
@@ -98,7 +168,7 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                         </View>
                     </View>
 
-                    {/* Update Chart Section */}
+                    {/* Chart Section */}
                     <View style={styles.chartContainer}>
                         <View style={styles.timeframeContainer}>
                             {['1H', '1D', '1W', '1M', 'YTD', 'ALL'].map((tf) => (
@@ -107,22 +177,22 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                                     style={[
                                         styles.timeframeButton,
                                         selectedTimeframe === tf && styles.selectedTimeframe,
-                                        loading && styles.disabledButton
+                                        detailsLoading && styles.disabledButton // Use detailsLoading for chart controls
                                     ]}
-                                    onPress={() => !loading && handleTimeframeChange(tf as any)}
-                                    disabled={loading}
+                                    onPress={() => !detailsLoading && handleTimeframeChange(tf as any)}
+                                    disabled={detailsLoading}
                                 >
                                     <Text style={[
                                         styles.timeframeText,
                                         selectedTimeframe === tf && styles.selectedTimeframeText,
-                                        loading && styles.disabledText
+                                        detailsLoading && styles.disabledText
                                     ]}>
                                         {tf}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        {loading ? (
+                        {detailsLoading ? (
                             <View style={styles.loadingContainer}>
                                 <ActivityIndicator size="large" color={COLORS.brandPrimary} />
                                 <Text style={styles.loadingText}>Loading price data...</Text>
@@ -131,7 +201,7 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                             <View style={styles.graphWrapper}>
                                 <LineGraph
                                     data={getGraphData(priceHistory.map(item => item.value))}
-                                    width={width - 72}
+                                    width={width - 72} // Adjust width based on padding
                                     timestamps={getTimestamps()}
                                 />
                             </View>
@@ -148,7 +218,7 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                         <RiskAnalysisSection tokenAddress={token.address} />
                     </View>
 
-                    {/* Info Section */}
+                    {/* Info Section (ensure fallbacks for tokenOverview fields) */}
                     <View style={styles.infoSection}>
                         <Text style={styles.sectionTitle}>Info</Text>
                         <View style={styles.infoGrid}>
@@ -166,76 +236,65 @@ const TokenDetailsSheet: React.FC<TokenDetailsSheetProps> = ({
                             <View style={styles.infoItem}>
                                 <Text style={styles.infoLabel}>Mint</Text>
                                 <Text style={styles.infoValue} numberOfLines={1}>
-                                    {token.address.substring(0, 6)}...{token.address.substring(token.address.length - 6)}
+                                    {token.address ? `${token.address.substring(0, 6)}...${token.address.substring(token.address.length - 6)}` : 'N/A'}
                                 </Text>
                             </View>
                             <View style={styles.infoItem}>
                                 <Text style={styles.infoLabel}>Market Cap</Text>
                                 <Text style={styles.infoValue}>
-                                    ${formatNumber(tokenOverview?.market_cap || tokenOverview?.marketCap)}
+                                    ${formatNumber(tokenOverview?.market_cap ?? tokenOverview?.marketCap)}
                                 </Text>
                             </View>
                             <View style={styles.infoItem}>
                                 <Text style={styles.infoLabel}>Circulating Supply</Text>
                                 <Text style={styles.infoValue}>
-                                    {formatNumber(tokenOverview?.supply?.circulating ||
-                                        tokenOverview?.circulatingSupply)}
+                                    {formatNumber(tokenOverview?.supply?.circulating ?? tokenOverview?.circulatingSupply)}
                                 </Text>
                             </View>
                             <View style={styles.infoItem}>
                                 <Text style={styles.infoLabel}>Holders</Text>
                                 <Text style={styles.infoValue}>
                                     {(() => {
-                                        const count = tokenOverview?.holder_count || tokenOverview?.holderCount;
-                                        return count ? count.toLocaleString() : 'N/A';
+                                        const count = tokenOverview?.holder_count ?? tokenOverview?.holderCount;
+                                        return count !== undefined ? count.toLocaleString() : 'N/A';
                                     })()}
                                 </Text>
                             </View>
                         </View>
                     </View>
 
-                    {/* 24h Performance Section */}
+                    {/* 24h Performance Section (ensure fallbacks for tradeData fields) */}
                     <View style={styles.performanceSection}>
                         <Text style={styles.sectionTitle}>24h Performance</Text>
                         <View style={styles.performanceGrid}>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Volume</Text>
-                                <Text style={styles.performanceValue}>
-                                    ${formatNumber(tradeData?.volume_24h_usd)}
-                                </Text>
+                                <Text style={styles.performanceValue}>${formatNumber(tradeData?.volume_24h_usd)}</Text>
                             </View>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Trades</Text>
-                                <Text style={styles.performanceValue}>
-                                    {tradeData?.trade_24h?.toLocaleString() || 'N/A'}
-                                </Text>
+                                <Text style={styles.performanceValue}>{tradeData?.trade_24h?.toLocaleString() ?? 'N/A'}</Text>
                             </View>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Buy Volume</Text>
-                                <Text style={styles.performanceValue}>
-                                    ${formatNumber(tradeData?.volume_buy_24h_usd)}
-                                </Text>
+                                <Text style={styles.performanceValue}>${formatNumber(tradeData?.volume_buy_24h_usd)}</Text>
                             </View>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Sell Volume</Text>
-                                <Text style={styles.performanceValue}>
-                                    ${formatNumber(tradeData?.volume_sell_24h_usd)}
-                                </Text>
+                                <Text style={styles.performanceValue}>${formatNumber(tradeData?.volume_sell_24h_usd)}</Text>
                             </View>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Unique Wallets</Text>
-                                <Text style={styles.performanceValue}>
-                                    {tradeData?.unique_wallet_24h?.toLocaleString() || 'N/A'}
-                                </Text>
+                                <Text style={styles.performanceValue}>{tradeData?.unique_wallet_24h?.toLocaleString() ?? 'N/A'}</Text>
                             </View>
                             <View style={styles.performanceItem}>
                                 <Text style={styles.performanceLabel}>Wallet Change</Text>
                                 <Text style={[
                                     styles.performanceValue,
-                                    { color: (tradeData?.unique_wallet_24h_change_percent || 0) >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
+                                    { color: (tradeData?.unique_wallet_24h_change_percent ?? 0) >= 0 ? COLORS.brandPrimary : COLORS.errorRed }
                                 ]}>
-                                    {tradeData?.unique_wallet_24h_change_percent
-                                        ? `${tradeData.unique_wallet_24h_change_percent >= 0 ? '+' : ''}${tradeData.unique_wallet_24h_change_percent.toFixed(2)}%`
+                                    {tradeData?.unique_wallet_24h_change_percent !== undefined
+                                        ? `${(tradeData.unique_wallet_24h_change_percent ?? 0) >= 0 ? '+' : ''}${(tradeData.unique_wallet_24h_change_percent ?? 0).toFixed(2)}%`
                                         : 'N/A'}
                                 </Text>
                             </View>

@@ -10,6 +10,7 @@ export interface TokenData {
   name: string;
   symbol: string;
   logoURI?: string;
+  metadataURI?: string; // Token metadata as a JSON string
   creatorId: string;
   createdAt: string;
   initialPrice: number;

@@ -1,6 +1,11 @@
 import { store } from '@/shared/state/store';
 import { createToken as createTokenAction, fetchUserTokens } from '@/shared/state/tokens/reducer';
 import { showSuccessNotification, showErrorNotification } from '@/shared/state/notification/reducer';
+import { SERVER_URL } from '@env';
+import { TokenData } from '../state/tokens/reducer';
+
+// For local fallback
+const SERVER_BASE_URL = SERVER_URL || 'http://localhost:3000';
 
 export interface TokenCreationData {
   address: string;
@@ -109,4 +114,142 @@ export async function getUserTokens(userId: string) {
     console.error('Error fetching user tokens:', error);
     return null;
   }
-} 
+}
+
+/**
+ * Service to handle token-related API calls
+ */
+export const TokenService = {
+  /**
+   * Fetch all tokens from the server
+   */
+  async getAllTokens(): Promise<TokenData[]> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch tokens');
+      }
+      
+      return data.tokens || [];
+    } catch (error) {
+      console.error('Error fetching all tokens:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Fetch tokens created by a specific user
+   */
+  async getUserTokens(userId: string): Promise<TokenData[]> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens/user/${userId}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch user tokens');
+      }
+      
+      return data.tokens || [];
+    } catch (error) {
+      console.error(`Error fetching tokens for user ${userId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get a specific token by ID
+   */
+  async getTokenById(tokenId: string): Promise<TokenData> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens/${tokenId}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch token');
+      }
+      
+      return data.token;
+    } catch (error) {
+      console.error(`Error fetching token ${tokenId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new token
+   */
+  async createToken(tokenData: Omit<TokenData, 'id' | 'createdAt'>): Promise<TokenData> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tokenData),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create token');
+      }
+      
+      return data.token;
+    } catch (error) {
+      console.error('Error creating token:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update an existing token
+   */
+  async updateToken(tokenId: string, updates: Partial<TokenData>): Promise<TokenData> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens/${tokenId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update token');
+      }
+      
+      return data.token;
+    } catch (error) {
+      console.error(`Error updating token ${tokenId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a token
+   */
+  async deleteToken(tokenId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${SERVER_BASE_URL}/api/tokens/${tokenId}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete token');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting token ${tokenId}:`, error);
+      throw error;
+    }
+  },
+};
+
+export default TokenService; 

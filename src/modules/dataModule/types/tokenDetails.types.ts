@@ -6,6 +6,7 @@ export interface TokenDetailsSheetProps {
         name: string;
         symbol: string;
         logoURI?: string;
+        metadataURI?: string;
         price: number;
         priceChange24h?: number;
     };
