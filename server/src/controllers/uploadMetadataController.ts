@@ -1,7 +1,7 @@
 // FILE: server/src/controllers/UploadMetadataController.ts
 
 import {Request, Response} from 'express';
-import {uploadToPinata} from '../utils/ipfs';
+import {uploadToIpfs} from '../utils/ipfs';
 
 export async function UploadMetadataController(
   req: Request,
@@ -67,14 +67,14 @@ export async function UploadMetadataController(
       symbol: tokenSymbol,
       description,
       showName: true,
-      createdOn: createdOn || '',
+      createdOn: createdOn || 'https://www.solanaappkit.com',
       twitter: twitter || '',
       telegram: telegram || '',
       website: website || '',
     };
     
-    console.log('[UploadMetadataController] Uploading to Pinata IPFS...');
-    const metadataUri = await uploadToPinata(imageBuffer, metadataObj);
+    console.log('[UploadMetadataController] Uploading to Pump Fun IPFS...');
+    const metadataUri = await uploadToIpfs(imageBuffer, metadataObj);
 
     res.json({
       success: true,

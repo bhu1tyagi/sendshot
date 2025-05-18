@@ -92,8 +92,7 @@ export async function getUserProfile(req: Request, res: Response) {
       success: true,
       url: user.profile_pic_url,
       username: user.username,
-      description: user.description,
-      attachmentData: user.attachment_data || {}
+      description: user.description
     });
   } catch (error: any) {
     console.error('Error in getUserProfile:', error);

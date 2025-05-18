@@ -1,6 +1,6 @@
 import {useCallback} from 'react';
 import {useDispatch} from 'react-redux';
-import {loginSuccess, logoutSuccess, createUserOnLogin} from '../../../shared/state/auth/reducer';
+import {loginSuccess, logoutSuccess, createUserOnLogin, loginOrCreateUser} from '../../../shared/state/auth/reducer';
 import {usePrivyWalletLogic} from '../services/walletProviders/privy';
 import {useCustomization} from '../../../config/CustomizationProvider';
 import {useAppNavigation} from '../../../shared/hooks/useAppNavigation';
@@ -84,28 +84,20 @@ export function useAuth() {
           setStatusMessage: (msg) => {
             console.log('[useAuth] Wallet status:', msg);
           },
-          onWalletConnected: info => {
+          onWalletConnected: async info => {
             console.log('[useAuth] Wallet connected:', info);
-            // Set initial username from the wallet address when logging in
-            const initialUsername = info.address.substring(0, 6);
-            console.log('[useAuth] Setting initial username:', initialUsername);
             
-            // Dispatch login action to update Redux state
-            dispatch(loginSuccess({
-              provider: 'privy', 
-              address: info.address,
-              username: initialUsername
-            }));
-            
-            // Also create/update user in database
-            dispatch(createUserOnLogin({
-              userId: info.address,
-              username: initialUsername,
-              provider: 'privy'
-            }));
-            
-            // REMOVED: navigation.navigate('MainTabs');
-            // Let Redux state change handle navigation
+            // Use the loginOrCreateUser thunk to check if user exists and fetch/create accordingly
+            try {
+              await dispatch(loginOrCreateUser({
+                provider: 'privy', 
+                address: info.address
+              }));
+              console.log('[useAuth] User login/create successful');
+              // Navigation is now handled by the LoginScreen based on isLoggedIn state
+            } catch (error) {
+              console.error('[useAuth] Error during user login/create:', error);
+            }
           },
         });
       } catch (error) {
@@ -149,28 +141,20 @@ export function useAuth() {
           setStatusMessage: (msg) => {
             console.log('[useAuth] Wallet status:', msg);
           },
-          onWalletConnected: info => {
+          onWalletConnected: async info => {
             console.log('[useAuth] Wallet connected:', info);
-            // Set initial username from the wallet address when logging in
-            const initialUsername = info.address.substring(0, 6);
-            console.log('[useAuth] Setting initial username:', initialUsername);
             
-            // Dispatch login action to update Redux state
-            dispatch(loginSuccess({
-              provider: 'privy', 
-              address: info.address,
-              username: initialUsername
-            }));
-            
-            // Also create/update user in database
-            dispatch(createUserOnLogin({
-              userId: info.address,
-              username: initialUsername,
-              provider: 'privy'
-            }));
-            
-            // REMOVED: navigation.navigate('MainTabs');
-            // Let Redux state change handle navigation
+            // Use the loginOrCreateUser thunk to check if user exists and fetch/create accordingly
+            try {
+              await dispatch(loginOrCreateUser({
+                provider: 'privy', 
+                address: info.address
+              }));
+              console.log('[useAuth] User login/create successful');
+              // Navigation is now handled by the LoginScreen based on isLoggedIn state
+            } catch (error) {
+              console.error('[useAuth] Error during user login/create:', error);
+            }
           },
         });
       } catch (error) {
@@ -196,28 +180,20 @@ export function useAuth() {
             setStatusMessage: (msg) => {
               console.log('[useAuth] Wallet status:', msg);
             },
-            onWalletConnected: info => {
+            onWalletConnected: async info => {
               console.log('[useAuth] Wallet connected successfully:', info);
-              // Set initial username from the wallet address when logging in
-              const initialUsername = info.address.substring(0, 6);
-              console.log('[useAuth] Setting initial username:', initialUsername);
               
-              // Dispatch login action to update Redux state
-              dispatch(loginSuccess({
-                provider: 'privy', 
-                address: info.address,
-                username: initialUsername
-              }));
-              
-              // Also create/update user in database
-              dispatch(createUserOnLogin({
-                userId: info.address,
-                username: initialUsername,
-                provider: 'privy'
-              }));
-              
-              // REMOVED: navigation.navigate('MainTabs');
-              // Let Redux state change handle navigation
+              // Use the loginOrCreateUser thunk to check if user exists and fetch/create accordingly
+              try {
+                await dispatch(loginOrCreateUser({
+                  provider: 'privy', 
+                  address: info.address
+                }));
+                console.log('[useAuth] User login/create successful');
+                // Navigation is now handled by the LoginScreen based on isLoggedIn state
+              } catch (error) {
+                console.error('[useAuth] Error during user login/create:', error);
+              }
             },
           });
         } else {

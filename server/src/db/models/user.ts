@@ -8,7 +8,6 @@ export interface User {
   last_login: string;
   profile_pic_url?: string;
   description?: string;
-  attachment_data?: Record<string, any>;
 }
 
 export class UserModel {

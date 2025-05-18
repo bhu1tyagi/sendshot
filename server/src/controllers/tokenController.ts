@@ -54,7 +54,7 @@ export async function createToken(req: Request, res: Response) {
       address,
       name,
       symbol,
-      logoURI,
+      metadataURI,
       creatorId,
       initialPrice,
       currentPrice,
@@ -64,8 +64,23 @@ export async function createToken(req: Request, res: Response) {
       protocolType,
     } = req.body;
     
+    console.log(`[tokenController] Creating token: ${name} (${symbol})`, { 
+      address,
+      creatorId,
+      protocolType
+    });
+
     // Validate required fields
     if (!address || !name || !symbol || !creatorId || !initialPrice || !totalSupply || !protocolType) {
+      console.error('[tokenController] Missing required fields:', {
+        address: !!address,
+        name: !!name,
+        symbol: !!symbol,
+        creatorId: !!creatorId,
+        initialPrice: !!initialPrice,
+        totalSupply: !!totalSupply,
+        protocolType: !!protocolType
+      });
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: address, name, symbol, creatorId, initialPrice, totalSupply, protocolType',
@@ -78,7 +93,25 @@ export async function createToken(req: Request, res: Response) {
     const newToken = await TokenModel.createToken(tokenData);
     
     if (!newToken) {
+      console.error(`[tokenController] Failed to create token ${name}`);
       return res.status(500).json({ success: false, error: 'Failed to create token' });
+    }
+    
+    console.log(`[tokenController] Created token successfully: ${name} (${symbol}) with id: ${newToken.id}`, {
+      returnedToken: newToken
+    });
+    
+    // Ensure the token has all required fields before returning
+    if (!newToken.id || !newToken.creatorId) {
+      console.error('[tokenController] Created token is missing required fields:', {
+        id: !!newToken.id,
+        creatorId: !!newToken.creatorId
+      });
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Created token is missing required fields',
+        token: null 
+      });
     }
     
     return res.status(201).json({ success: true, token: newToken });

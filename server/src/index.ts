@@ -39,10 +39,12 @@ const server = http.createServer(app);
 app.use('/api/pumpfun', launchRouter);
 app.use('/api/raydium/launchpad', raydiumLaunchpadRoutes);
 app.use('/api/pump-swap', pumpSwapRouter);
-app.use('/api', tokenMillRouter);
+// Specific routes should come before general routes
 app.use('/api/meteora', meteoraDBCRouter);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/users', userRoutes);
+// General catch-all route should be last
+app.use('/api', tokenMillRouter);
 
 // Add profile routes that map to user controller functions
 // This maintains backward compatibility with any existing frontend code

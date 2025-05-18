@@ -24,3 +24,12 @@ export {sendJitoBundleTransaction} from './shared/services/transactions/sendJito
 // Export modules
 export * from './modules/tokenMill';
 export * from './modules/pumpFun';
+
+// Use the routes
+app.use('/api/pumpfun', launchRouter);
+app.use('/api/raydium/launchpad', raydiumLaunchpadRoutes);
+app.use('/api/pump-swap', pumpSwapRouter);
+app.use('/api/tokens', tokenRoutes);
+app.use('/api/meteora', meteoraDBCRouter);
+app.use('/api/users', userRoutes);
+app.use('/api', tokenMillRouter);

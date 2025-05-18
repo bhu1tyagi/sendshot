@@ -108,7 +108,7 @@ importers:
         specifier: ^1.4.5-lts.1
         version: 1.4.5-lts.2
       node-fetch:
-        specifier: ^2.6.7
+        specifier: ^2.7.0
         version: 2.7.0
       pg:
         specifier: ^8.14.1

@@ -8,14 +8,6 @@ export interface AuthState {
   profilePicUrl: string | null;
   username: string | null; // storing user's chosen display name
   description: string | null; // storing user's bio description
-  // NEW: attachmentData object to hold any attached profile data (e.g., coin)
-  attachmentData?: {
-    coin?: {
-      mint: string;
-      symbol?: string;
-      name?: string;
-    };
-  };
 }
 
 const initialState: AuthState = {
@@ -25,10 +17,76 @@ const initialState: AuthState = {
   profilePicUrl: null,
   username: null,
   description: null,
-  attachmentData: {},
 };
 
 const SERVER_BASE_URL = SERVER_URL || 'http://localhost:3000';
+
+/**
+ * New thunk that combines checking if user exists, fetching user data if they do,
+ * or creating a new user if they don't
+ */
+export const loginOrCreateUser = createAsyncThunk(
+  'auth/loginOrCreateUser',
+  async (userData: {
+    provider: 'privy' | 'dynamic' | 'turnkey' | 'mwa';
+    address: string;
+    username?: string;
+  }, thunkAPI) => {
+    try {
+      console.log('[Auth] loginOrCreateUser for address:', userData.address);
+      
+      // First, try to fetch the user profile
+      const profileResponse = await fetch(
+        `${SERVER_BASE_URL}/api/profile?userId=${userData.address}`
+      );
+      const profileData = await profileResponse.json();
+      
+      // If user exists, return their data
+      if (profileData.success) {
+        console.log('[Auth] User exists, returning profile data');
+        return {
+          provider: userData.provider,
+          address: userData.address,
+          profilePicUrl: profileData.url,
+          username: profileData.username,
+          description: profileData.description,
+          isNewUser: false
+        };
+      }
+      
+      // User doesn't exist, create a new one
+      console.log('[Auth] User does not exist, creating new user');
+      const createResponse = await fetch(`${SERVER_BASE_URL}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userData.address,
+          username: userData.username || userData.address.substring(0, 6),
+          provider: userData.provider,
+        }),
+      });
+      
+      const createData = await createResponse.json();
+      
+      if (!createData.success) {
+        return thunkAPI.rejectWithValue(createData.error || 'Failed to create user');
+      }
+      
+      // Return new user data
+      return {
+        provider: userData.provider,
+        address: userData.address,
+        username: createData.user.username,
+        isNewUser: true
+      };
+    } catch (error: any) {
+      console.error('[Auth] Error in loginOrCreateUser:', error);
+      return thunkAPI.rejectWithValue(error.message || 'Error during login/signup');
+    }
+  }
+);
 
 /**
  * Create or update a user in the database after login
@@ -83,7 +141,6 @@ export const fetchUserProfile = createAsyncThunk(
         profilePicUrl: data.url,
         username: data.username,
         description: data.description,
-        attachmentData: data.attachmentData || {},
       };
     } else {
       return thunkAPI.rejectWithValue(
@@ -256,7 +313,6 @@ const authSlice = createSlice({
       state.profilePicUrl = null;
       state.username = null;
       state.description = null;
-      state.attachmentData = {};
       console.log('[AuthReducer] State after logoutSuccess:', JSON.stringify(state));
     },
     updateProfilePic(state, action: PayloadAction<string>) {
@@ -269,7 +325,6 @@ const authSlice = createSlice({
         profilePicUrl: fetchedProfilePicUrl,
         username: fetchedUsername,
         description: fetchedDescription,
-        attachmentData,
       } = action.payload as any;
 
       // Get the userId that was requested as the argument to the thunk
@@ -285,7 +340,6 @@ const authSlice = createSlice({
         state.profilePicUrl = fetchedProfilePicUrl || state.profilePicUrl;
         state.username = fetchedUsername || state.username;
         state.description = fetchedDescription || state.description;
-        state.attachmentData = attachmentData || state.attachmentData || {};
       }
       // If the user IDs don't match, we don't update the auth state
       // This prevents other users' profiles from affecting the current user's profile
@@ -322,6 +376,35 @@ const authSlice = createSlice({
     builder.addCase(createUserOnLogin.rejected, (state, action) => {
       console.error('[AuthSlice] createUserOnLogin rejected:', action.payload || action.error.message);
       // Could handle error state here if needed
+    });
+    
+    // Add cases for loginOrCreateUser
+    builder.addCase(loginOrCreateUser.fulfilled, (state, action) => {
+      console.log('[AuthSlice] loginOrCreateUser fulfilled:', action.payload);
+      
+      // Update auth state with user data
+      state.provider = action.payload.provider;
+      state.address = action.payload.address;
+      state.isLoggedIn = true;
+      state.username = action.payload.username || state.username || action.payload.address.substring(0, 6);
+      
+      // Only update if available from payload
+      if (action.payload.profilePicUrl) {
+        state.profilePicUrl = action.payload.profilePicUrl;
+      }
+      
+      if (action.payload.description) {
+        state.description = action.payload.description;
+      }
+      
+      console.log('[AuthSlice] Auth state updated after login/create:', 
+        state.isLoggedIn, state.username);
+    });
+    
+    builder.addCase(loginOrCreateUser.rejected, (state, action) => {
+      console.error('[AuthSlice] loginOrCreateUser rejected:', action.payload || action.error.message);
+      // Reset login state on failure
+      state.isLoggedIn = false;
     });
   },
 });

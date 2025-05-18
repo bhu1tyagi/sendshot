@@ -6,7 +6,7 @@ export interface Token {
   address: string;
   name: string;
   symbol: string;
-  logo_uri?: string;
+  metadata_uri?: string;
   creator_id: string;
   created_at: string;
   initial_price: number;
@@ -22,7 +22,7 @@ export interface TokenResponse {
   address: string;
   name: string;
   symbol: string;
-  logoURI?: string;
+  metadataURI?: string;
   creatorId: string;
   createdAt: string;
   initialPrice: number;
@@ -34,13 +34,27 @@ export interface TokenResponse {
 }
 
 // Convert from database snake_case to camelCase for frontend
-export function convertDbTokenToResponse(token: Token): TokenResponse {
+export function convertDbTokenToResponse(token: Token): TokenResponse | null {
+  if (!token) {
+    console.error('Cannot convert null or undefined token');
+    return null;
+  }
+  
+  // Add validation to ensure critical fields exist
+  if (!token.id || !token.creator_id) {
+    console.error('Token is missing critical fields:', {
+      hasId: !!token.id,
+      hasCreatorId: !!token.creator_id,
+      token
+    });
+  }
+  
   return {
     id: token.id,
     address: token.address,
     name: token.name,
     symbol: token.symbol,
-    logoURI: token.logo_uri,
+    metadataURI: token.metadata_uri,
     creatorId: token.creator_id,
     createdAt: token.created_at,
     initialPrice: token.initial_price,
@@ -58,7 +72,7 @@ export function convertRequestToDbToken(tokenRequest: any): Omit<Token, 'id' | '
     address: tokenRequest.address,
     name: tokenRequest.name,
     symbol: tokenRequest.symbol,
-    logo_uri: tokenRequest.logoURI,
+    metadata_uri: tokenRequest.metadataURI,
     creator_id: tokenRequest.creatorId,
     initial_price: tokenRequest.initialPrice,
     current_price: tokenRequest.currentPrice,
@@ -100,7 +114,10 @@ export async function getAllTokens(): Promise<TokenResponse[]> {
     return [];
   }
 
-  return data.map(convertDbTokenToResponse);
+  // Convert and filter out any null results
+  return data
+    .map(convertDbTokenToResponse)
+    .filter(token => token !== null);
 }
 
 export async function getUserTokens(userId: string): Promise<TokenResponse[]> {
@@ -115,7 +132,10 @@ export async function getUserTokens(userId: string): Promise<TokenResponse[]> {
     return [];
   }
 
-  return data.map(convertDbTokenToResponse);
+  // Convert and filter out any null results
+  return data
+    .map(convertDbTokenToResponse)
+    .filter(token => token !== null);
 }
 
 export async function getTokenById(tokenId: string): Promise<TokenResponse | null> {

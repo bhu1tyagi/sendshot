@@ -14,6 +14,7 @@ import * as spl from '@solana/spl-token';
 import { PUBLIC_KEYS } from '../../../config/constants';
 import { TransactionService } from '../../walletProviders/services/transaction/transactionService';
 import { StandardWallet } from '../../walletProviders/types';
+import { registerTokenMillToken } from './tokenIntegration';
 
 /**
  * fundUserWithWSOL
@@ -127,54 +128,72 @@ export async function createMarket({
   baseTokenMint: string;
 }> {
   try {
-    onStatusUpdate?.('Preparing market creation...');
+    onStatusUpdate?.('Preparing transaction...');
     
-    const body = {
-      name: tokenName,
-      symbol: tokenSymbol,
-      uri: metadataUri,
-      totalSupply,
-      creatorFeeShare: creatorFee,
-      stakingFeeShare: stakingFee,
-      userPublicKey,
-    };
-
-    onStatusUpdate?.('Requesting transaction from server...');
-    const resp = await fetch(`${SERVER_URL}/api/markets`, {
+    const response = await fetch(`${SERVER_URL}/api/tokenmill/create-market`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: tokenName,
+        symbol: tokenSymbol,
+        uri: metadataUri,
+        totalSupply,
+        creatorFeeShare: creatorFee,
+        stakingFeeShare: stakingFee,
+        userPublicKey,
+      }),
     });
-    const json = await resp.json();
-    if (!json.success) {
-      throw new Error(json.error || 'Market creation failed');
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create market: ${errorText}`);
     }
 
-    onStatusUpdate?.('Transaction received, sending to wallet...');
-    // Create a filtered status callback that prevents error messages
-    const filteredCallback = (status: string) => {
-      if (!status.startsWith('Error:') && !status.includes('failed:')) {
-        onStatusUpdate?.(status);
-      } else {
-        onStatusUpdate?.('Processing transaction...');
-      }
-    };
+    const { transaction, marketAddress, baseTokenMint } = await response.json();
 
-    const txSignature = await TransactionService.signAndSendTransaction(
-      { type: 'base64', data: json.transaction },
-      solanaWallet,
-      { 
-        connection,
-        statusCallback: filteredCallback
-      }
+    onStatusUpdate?.('Sending transaction for approval...');
+    const txSignature = await solanaWallet.sendBase64Transaction(
+      transaction,
+      connection,
+      { confirmTransaction: true, statusCallback: onStatusUpdate }
     );
 
     onStatusUpdate?.('Market created successfully!');
-    
+    console.log('Market created with address:', marketAddress);
+    console.log('Base token mint:', baseTokenMint);
+
+    // Register the token in the database
+    try {
+      onStatusUpdate?.('Registering token in database...');
+      
+      // Calculate initial price (this is a simplified calculation)
+      const initialPrice = 0.001; // Set an initial price or calculate based on your tokenomics
+      
+      const registerResult = await registerTokenMillToken({
+        address: baseTokenMint,
+        name: tokenName,
+        symbol: tokenSymbol,
+        metadataURI: metadataUri,
+        creatorId: userPublicKey,
+        initialPrice: initialPrice,
+        totalSupply: totalSupply.toString(),
+        holders: 1, // Creator is the first holder
+      });
+      
+      if (registerResult) {
+        onStatusUpdate?.('Token registered in database successfully!');
+      } else {
+        onStatusUpdate?.('Note: Market created on-chain but database registration failed.');
+      }
+    } catch (registerError) {
+      console.error('Token registration error:', registerError);
+      onStatusUpdate?.('Note: Market created on-chain but database registration failed.');
+    }
+
     return {
       txSignature,
-      marketAddress: json.marketAddress,
-      baseTokenMint: json.baseTokenMint,
+      marketAddress,
+      baseTokenMint,
     };
   } catch (error) {
     console.error('Error in createMarket:', error);

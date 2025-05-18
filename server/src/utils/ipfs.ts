@@ -43,7 +43,7 @@ export async function uploadToIpfs(
   if (metadata.twitter) formData.append('twitter', metadata.twitter);
   if (metadata.telegram) formData.append('telegram', metadata.telegram);
   if (metadata.website) formData.append('website', metadata.website);
-  if (metadata.createdOn) formData.append('createdOn', metadata.createdOn || 'https://pump.fun');
+  if (metadata.createdOn) formData.append('createdOn', 'https://www.solanaappkit.com');
   formData.append('showName', metadata.showName?.toString() || 'true');
 
   // 3) Upload to Pump Fun IPFS API
@@ -161,9 +161,9 @@ export async function uploadToPinata(
     
     // Upload the metadata JSON
     const metadataUpload = await pinata.upload.public.json(metadataObject);
-    
+    console.log('metadataUpload', metadataUpload);
     // Return the IPFS link to the metadata
-    const metadataUri = `https://ipfs.io/ipfs/${metadataUpload.cid}`;
+    const metadataUri = `https://${process.env.PINATA_GATEWAY}/ipfs/${metadataUpload.cid}`;
     
     console.log('Metadata uploaded to Pinata, URI:', metadataUri);
     return metadataUri;
