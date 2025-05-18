@@ -26,6 +26,15 @@ import { fetchUserTokens } from '@/shared/state/tokens/reducer';
 // Launchpad modules
 const modules = [
   {
+    key: 'launchlab',
+    title: 'Launch Lab',
+    subtitle: 'Launch Tokens via Rayduim',
+    navigateTo: 'LaunchlabsScreen',
+    iconComponent: Icons.RadyuimIcom,
+    backgroundImage: require('@/assets/images/Rayduim_bg.png'),
+    protocolType: 'raydium',
+  },
+  {
     key: 'pumpfun',
     title: 'Pumpfun',
     subtitle: 'The OG Solana Launchpad',
@@ -43,24 +52,8 @@ const modules = [
   //   backgroundColor: '#BBDEFB',
   //   navigateTo: 'PumpSwap',
   // },
-  {
-    key: 'launchlab',
-    title: 'Launch Lab',
-    subtitle: 'Launch Tokens via Rayduim',
-    navigateTo: 'LaunchlabsScreen',
-    iconComponent: Icons.RadyuimIcom,
-    backgroundImage: require('@/assets/images/Rayduim_bg.png'),
-    protocolType: 'raydium',
-  },
-  {
-    key: 'tokenmill',
-    title: 'Token Mill',
-    subtitle: 'Launch tokens with customizable bonding curve',
-    navigateTo: 'TokenMill',
-    iconComponent: Icons.TokenMillIcon,
-    backgroundImage: require('@/assets/images/TokenMill_bg.png'),
-    protocolType: 'tokenmill',
-  },
+
+
   {
     key: 'meteora',
     title: 'Meteora',
@@ -71,6 +64,15 @@ const modules = [
     usePngIcon: true,
     protocolType: 'meteora',
   },
+  {
+    key: 'tokenmill',
+    title: 'Token Mill',
+    subtitle: 'Launch tokens with customizable bonding curve',
+    navigateTo: 'TokenMill',
+    iconComponent: Icons.TokenMillIcon,
+    backgroundImage: require('@/assets/images/TokenMill_bg.png'),
+    protocolType: 'tokenmill',
+  }
 ];
 
 // Define styles for the LaunchPads screen

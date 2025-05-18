@@ -19,8 +19,8 @@ import { SwapForm, LiquidityPanel, TokenCreationForm } from '../components';
 
 // Tab enum for navigation
 enum MeteoraTab {
-    SWAP = 'swap',
-    LIQUIDITY = 'liquidity',
+    // SWAP = 'swap',
+    // LIQUIDITY = 'liquidity',
     CREATE_TOKEN = 'create_token'
 }
 
@@ -37,20 +37,19 @@ export default function MeteoraScreen() {
         navigation.goBack();
     }, [navigation]);
 
+    // Commented out as we're only showing the create token tab
+    /*
     const handleTabPress = (tab: MeteoraTab) => {
         setActiveTab(tab);
     };
+    */
 
     const handleTransactionComplete = (txId: string, type?: string) => {
         // Add the transaction to history
         setTransactionHistory(prev => [
             {
                 id: txId,
-                type: type || (activeTab === MeteoraTab.SWAP
-                    ? 'Swap'
-                    : activeTab === MeteoraTab.LIQUIDITY
-                        ? 'Liquidity'
-                        : 'Token Creation'),
+                type: type || 'Token Creation',
                 timestamp: Date.now()
             },
             ...prev
@@ -59,21 +58,13 @@ export default function MeteoraScreen() {
 
     const handleTokenCreated = (tokenAddress: string, txId: string) => {
         handleTransactionComplete(txId, 'Token Creation');
-        // Switch to the swap tab to allow immediate trading of the new token
-        setActiveTab(MeteoraTab.SWAP);
+        // Commented out as we're not switching tabs anymore
+        // setActiveTab(MeteoraTab.SWAP);
     };
 
+    // Simplified to only show token creation
     const renderTabContent = () => {
-        switch (activeTab) {
-            case MeteoraTab.SWAP:
-                return <SwapForm onSwapComplete={handleTransactionComplete} />;
-            case MeteoraTab.LIQUIDITY:
-                return <LiquidityPanel walletAddress={walletAddress} onTransactionComplete={handleTransactionComplete} />;
-            case MeteoraTab.CREATE_TOKEN:
-                return <TokenCreationForm walletAddress={walletAddress} onTokenCreated={handleTokenCreated} />;
-            default:
-                return null;
-        }
+        return <TokenCreationForm walletAddress={walletAddress} onTokenCreated={handleTokenCreated} />;
     };
 
     return (
@@ -91,12 +82,8 @@ export default function MeteoraScreen() {
             />
 
             {/* Meteora Logo and Tagline */}
-            <View style={styles.headerContainer}>
-                {/* Logo would go here */}
-                <Text style={styles.tagline}>Powerful DEX with Dynamic Bonding Curve</Text>
-            </View>
-
-            {/* Tab Navigation */}
+         
+            {/* Tab Navigation - Commented out as we're only showing token creation
             <View style={styles.tabContainer}>
                 <TouchableOpacity
                     style={[
@@ -131,26 +118,8 @@ export default function MeteoraScreen() {
                         Swap
                     </Text>
                 </TouchableOpacity>
-
-                {/* Liquidity tab removed temporarily
-                <TouchableOpacity
-                    style={[
-                        styles.tabButton,
-                        activeTab === MeteoraTab.LIQUIDITY && styles.activeTabButton
-                    ]}
-                    onPress={() => handleTabPress(MeteoraTab.LIQUIDITY)}
-                >
-                    <Text
-                        style={[
-                            styles.tabButtonText,
-                            activeTab === MeteoraTab.LIQUIDITY && styles.activeTabButtonText
-                        ]}
-                    >
-                        Liquidity
-                    </Text>
-                </TouchableOpacity>
-                */}
             </View>
+            */}
 
             {/* Main Content Area */}
             <ScrollView

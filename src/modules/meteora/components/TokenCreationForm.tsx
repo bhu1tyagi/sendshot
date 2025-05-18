@@ -862,9 +862,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     card: {
-        backgroundColor: COLORS.lighterBackground,
+        backgroundColor: COLORS.background,
         borderRadius: 16,
-        padding: 20,
+        padding: 10,
         margin: 16,
         shadowColor: '#000',
         shadowOffset: {
