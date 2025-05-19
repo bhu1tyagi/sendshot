@@ -9,6 +9,9 @@ interface BondingCurveVisualizerProps {
     migrationMarketCap: number;
     tokenSupply: number;
     baseFeeBps?: number;
+    dynamicFeeEnabled?: boolean;
+    collectFeeBoth?: boolean;
+    migrationFeeOption?: number;
 }
 
 export default function BondingCurveVisualizer({
@@ -16,11 +19,15 @@ export default function BondingCurveVisualizer({
     migrationMarketCap,
     tokenSupply,
     baseFeeBps = 100, // Default to 1% fee
+    dynamicFeeEnabled = true,
+    collectFeeBoth = false,
+    migrationFeeOption = 0,
 }: BondingCurveVisualizerProps) {
-    const [points, setPoints] = useState<Array<{ x: number; y: number; supply: number; price: number }>>([]);
+    const [points, setPoints] = useState<Array<{ x: number; y: number; supply: number; price: number; mcap: number }>>([]);
     const [maxY, setMaxY] = useState(0);
-    const [initialPoint, setInitialPoint] = useState<{ x: number; y: number; price: number } | null>(null);
-    const [migrationPoint, setMigrationPoint] = useState<{ x: number; y: number; price: number } | null>(null);
+    const [initialPoint, setInitialPoint] = useState<{ x: number; y: number; price: number; mcap: number } | null>(null);
+    const [migrationPoint, setMigrationPoint] = useState<{ x: number; y: number; price: number; mcap: number } | null>(null);
+    const [halfwayPoint, setHalfwayPoint] = useState<{ x: number; y: number; price: number; mcap: number } | null>(null);
 
     const WIDTH = Dimensions.get('window').width - 64;
     const HEIGHT = 200;
@@ -46,20 +53,52 @@ export default function BondingCurveVisualizer({
             let highestY = 0;
             let initialPointIndex = 0;
             let migrationPointIndex = numPoints;
+            let halfwayPointIndex = Math.floor(numPoints / 2);
 
-            // Define curve shape based on the ratio between initial and migration caps
+            // Define curve shape based on parameters
+            // Higher fee = more aggressive curve
+            const feeMultiplier = baseFeeBps / 100; // Convert BPS to percentage
             const ratio = migrationCap / initialCap;
-            // Higher exponent = steeper curve at the end
-            const exponent = ratio > 10 ? 2.5 : (ratio > 5 ? 2.0 : 1.8);
+
+            // Adjust exponent based on fee and migration target
+            let exponent = ratio > 10 ? 2.5 : (ratio > 5 ? 2.0 : 1.8);
+
+            // Modify curve shape based on fee settings
+            if (baseFeeBps > 100) {
+                // Higher fees make curve steeper
+                exponent += (baseFeeBps - 100) / 300;
+            }
+
+            // Dynamic fee enabled makes curve slightly more aggressive
+            if (dynamicFeeEnabled) {
+                exponent *= 1.05;
+            }
+
+            // Collect fee in both tokens makes curve slightly less aggressive
+            if (collectFeeBoth) {
+                exponent *= 0.95;
+            }
+
+            // Migration fee option affects curve near migration point
+            const migrationFeeImpact = migrationFeeOption / 10;
 
             for (let i = 0; i <= numPoints; i++) {
                 // Progress along the curve (0 to 1)
                 const t = i / numPoints;
                 const supplyAtPoint = t * supply;
 
-                // Use a power curve formula: price = initialPrice + (finalPrice - initialPrice) * t^exponent
-                // This creates a curve that starts slower and accelerates
-                const price = initialPrice + (finalPrice - initialPrice) * Math.pow(t, exponent);
+                // Use a power curve formula with adjustments for parameters
+                let price;
+                if (t > 0.9 && migrationFeeOption > 0) {
+                    // Add a small bump near migration point if migration fee is higher
+                    const migrationBoost = (migrationFeeOption / 10) * (t - 0.9) / 0.1;
+                    price = initialPrice + (finalPrice - initialPrice) * (Math.pow(t, exponent) + migrationBoost * 0.1);
+                } else {
+                    price = initialPrice + (finalPrice - initialPrice) * Math.pow(t, exponent);
+                }
+
+                // Calculate market cap at this point
+                const mcap = price * supplyAtPoint;
 
                 // Map to screen coordinates
                 const x = (t * (WIDTH - 2 * PADDING)) + PADDING;
@@ -71,7 +110,8 @@ export default function BondingCurveVisualizer({
                     x,
                     y,
                     supply: supplyAtPoint,
-                    price
+                    price,
+                    mcap
                 });
 
                 // Find the point closest to migration supply (100%)
@@ -83,19 +123,33 @@ export default function BondingCurveVisualizer({
                 if (t === 0.0) {
                     initialPointIndex = i;
                 }
+
+                // Find a point around halfway through the curve
+                if (Math.abs(t - 0.5) < 0.01) {
+                    halfwayPointIndex = i;
+                }
             }
 
-            // Set the migration and initial points
+            // Set the key points
             setInitialPoint({
                 x: newPoints[initialPointIndex].x,
                 y: newPoints[initialPointIndex].y,
-                price: initialPrice
+                price: initialPrice,
+                mcap: initialCap
             });
 
             setMigrationPoint({
                 x: newPoints[migrationPointIndex].x,
                 y: newPoints[migrationPointIndex].y,
-                price: finalPrice
+                price: finalPrice,
+                mcap: migrationCap
+            });
+
+            setHalfwayPoint({
+                x: newPoints[halfwayPointIndex].x,
+                y: newPoints[halfwayPointIndex].y,
+                price: newPoints[halfwayPointIndex].price,
+                mcap: newPoints[halfwayPointIndex].mcap
             });
 
             setMaxY(highestY);
@@ -103,7 +157,7 @@ export default function BondingCurveVisualizer({
         } catch (error) {
             console.error('Error calculating curve points:', error);
         }
-    }, [initialMarketCap, migrationMarketCap, tokenSupply, baseFeeBps]);
+    }, [initialMarketCap, migrationMarketCap, tokenSupply, baseFeeBps, dynamicFeeEnabled, collectFeeBoth, migrationFeeOption]);
 
     // Format numbers with k/m suffix
     const formatNumber = (num: number): string => {
@@ -136,6 +190,9 @@ export default function BondingCurveVisualizer({
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Bonding Curve Preview</Text>
+            <Text style={styles.subtitle}>
+                Visualizes how token price increases as the supply is purchased
+            </Text>
 
             <Svg width={WIDTH} height={HEIGHT} style={styles.svgContainer}>
                 {/* X and Y axes */}
@@ -265,6 +322,21 @@ export default function BondingCurveVisualizer({
                     </>
                 )}
 
+                {halfwayPoint && (
+                    <>
+                        <Circle cx={halfwayPoint.x} cy={halfwayPoint.y} r={4} fill={COLORS.brandPurple || '#B591FF'} />
+                        <SvgText
+                            x={halfwayPoint.x + 10}
+                            y={halfwayPoint.y - 10}
+                            fontSize={9}
+                            fill={COLORS.brandPurple || '#B591FF'}
+                            textAnchor="start"
+                        >
+                            {formatNumber(halfwayPoint.price)} SOL
+                        </SvgText>
+                    </>
+                )}
+
                 {migrationPoint && (
                     <>
                         <Circle cx={migrationPoint.x} cy={migrationPoint.y} r={5} fill={COLORS.brandPrimary} />
@@ -282,8 +354,8 @@ export default function BondingCurveVisualizer({
             </Svg>
 
             <View style={styles.labelContainer}>
-                <Text style={styles.xAxisLabel}>Token Supply</Text>
-                <Text style={styles.yAxisLabel}>Price (SOL)</Text>
+                <Text style={styles.xAxisLabel}>Token Supply (Circulating)</Text>
+                <Text style={styles.yAxisLabel}>Price per Token (SOL)</Text>
             </View>
 
             <View style={styles.infoContainer}>
@@ -318,6 +390,37 @@ export default function BondingCurveVisualizer({
                         {formatNumber(migrationMarketCap)} SOL
                     </Text>
                 </View>
+                {halfwayPoint && (
+                    <View style={styles.infoItem}>
+                        <Text style={styles.infoLabel}>Mid-point Price:</Text>
+                        <Text style={styles.infoValue}>
+                            {formatNumber(halfwayPoint.price)} SOL
+                        </Text>
+                    </View>
+                )}
+                <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Trade Fee:</Text>
+                    <Text style={styles.infoValue}>
+                        {(baseFeeBps / 100).toFixed(2)}% {dynamicFeeEnabled ? '(Dynamic)' : '(Fixed)'}
+                    </Text>
+                </View>
+                <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Fee Collection:</Text>
+                    <Text style={styles.infoValue}>
+                        {collectFeeBoth ? 'Both Tokens' : 'Quote Only'}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.axisExplanationContainer}>
+                <Text style={styles.axisExplanationTitle}>Understanding This Chart</Text>
+                <Text style={styles.axisExplanationText}>
+                    • X-axis shows token supply in circulation as tokens are bought{'\n'}
+                    • Y-axis shows price per token in SOL{'\n'}
+                    • Curve shows how price increases as more tokens are bought{'\n'}
+                    • Higher fees and dynamic pricing create steeper curves{'\n'}
+                    • Token graduates to DAMM V1 when migration market cap is reached
+                </Text>
             </View>
         </View>
     );
@@ -349,6 +452,11 @@ const styles = StyleSheet.create({
         fontSize: TYPOGRAPHY.size.md,
         fontWeight: TYPOGRAPHY.weights.semiBold,
         color: COLORS.white,
+        marginBottom: 4,
+    },
+    subtitle: {
+        fontSize: TYPOGRAPHY.size.xs,
+        color: COLORS.greyMid,
         marginBottom: 16,
     },
     labelContainer: {
@@ -357,12 +465,12 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     xAxisLabel: {
-        fontSize: TYPOGRAPHY.size.sm,
+        fontSize: TYPOGRAPHY.size.xs,
         color: COLORS.greyMid,
         textAlign: 'center',
     },
     yAxisLabel: {
-        fontSize: TYPOGRAPHY.size.sm,
+        fontSize: TYPOGRAPHY.size.xs,
         color: COLORS.greyMid,
         textAlign: 'center',
     },
@@ -407,5 +515,24 @@ const styles = StyleSheet.create({
         fontSize: TYPOGRAPHY.size.sm,
         color: COLORS.greyMid,
         textAlign: 'center',
+    },
+    axisExplanationContainer: {
+        marginTop: 16,
+        padding: 12,
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        borderRadius: 8,
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.brandPrimary,
+    },
+    axisExplanationTitle: {
+        fontSize: TYPOGRAPHY.size.sm,
+        fontWeight: TYPOGRAPHY.weights.semiBold,
+        color: COLORS.white,
+        marginBottom: 8,
+    },
+    axisExplanationText: {
+        fontSize: TYPOGRAPHY.size.xs,
+        color: COLORS.greyMid,
+        lineHeight: 18,
     },
 }); 

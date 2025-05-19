@@ -601,6 +601,15 @@ export const createTokenWithCurve = async (
     metadataUri?: string; // Token metadata URI from IPFS or similar
     website?: string; // Optional website for token metadata
     logo?: string; // Optional logo URL for token metadata
+    // Advanced settings
+    baseFeeBps?: number; // Base fee in basis points (100 = 1%)
+    dynamicFeeEnabled?: boolean; // Enable dynamic fee
+    collectFeeBoth?: boolean; // Collect fee in both tokens
+    migrationFeeOption?: number; // Migration fee option
+    partnerLpPercentage?: number; // Partner LP percentage
+    creatorLpPercentage?: number; // Creator LP percentage
+    partnerLockedLpPercentage?: number; // Partner locked LP percentage
+    creatorLockedLpPercentage?: number; // Creator locked LP percentage
   },
   connection: Connection,
   wallet: any,
@@ -631,16 +640,16 @@ export const createTokenWithCurve = async (
         periodFrequency: 0,
         feeSchedulerMode: 0,
       },
-      baseFeeBps: 100, // 1% fee
-      dynamicFeeEnabled: true,
+      baseFeeBps: params.baseFeeBps ?? 100, // Use provided value or default to 1% fee
+      dynamicFeeEnabled: params.dynamicFeeEnabled ?? true, // Use provided value or default to true
       activationType: 0, // Slot based
-      collectFeeMode: 0, // Only quote
-      migrationFeeOption: 0, // Fixed 25bps
+      collectFeeMode: params.collectFeeBoth ? 1 : 0, // 1 for both tokens, 0 for quote only
+      migrationFeeOption: params.migrationFeeOption ?? 0, // Use provided value or default to Fixed 25bps
       tokenType: 0, // SPL token
-      partnerLpPercentage: 25,
-      creatorLpPercentage: 25,
-      partnerLockedLpPercentage: 25,
-      creatorLockedLpPercentage: 25,
+      partnerLpPercentage: params.partnerLpPercentage ?? 25, // Use provided value or default to 25%
+      creatorLpPercentage: params.creatorLpPercentage ?? 25, // Use provided value or default to 25%
+      partnerLockedLpPercentage: params.partnerLockedLpPercentage ?? 25, // Use provided value or default to 25%
+      creatorLockedLpPercentage: params.creatorLockedLpPercentage ?? 25, // Use provided value or default to 25%
       creatorTradingFeePercentage: 0,
     }, connection, wallet, onStatusUpdate);
 

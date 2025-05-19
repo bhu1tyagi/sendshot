@@ -37,18 +37,28 @@ interface SwapDrawerProps {
     visible: boolean;
     onClose: () => void;
     targetToken: TokenInfo;
-    onSwapComplete?: () => void;
+    onSwapComplete?: (tradeInfo: {
+        success: boolean;
+        signature?: string;
+        inputToken: TokenInfo;
+        outputToken: TokenInfo;
+        inputAmount: number;
+        outputAmount: number;
+        isSell: boolean;
+    }) => void;
+    isSell?: boolean;
 }
 
 const SwapDrawer: React.FC<SwapDrawerProps> = ({
     visible,
     onClose,
     targetToken,
-    onSwapComplete
+    onSwapComplete,
+    isSell = false
 }) => {
     const { publicKey: userPublicKey, connected, sendTransaction } = useWallet();
 
-    // Input token state (SOL by default)
+    // Input token state (SOL by default for buy, targetToken for sell)
     const [inputToken, setInputToken] = useState<TokenInfo | null>(null);
     const [outputToken, setOutputToken] = useState<TokenInfo | null>(null);
     const [inputValue, setInputValue] = useState('1');
@@ -85,39 +95,49 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
         }
     }, [visible]);
 
-    // Initialize SOL and target token
+    // Initialize tokens based on buy/sell mode
     const initializeTokens = useCallback(async () => {
         setLoading(true);
         setResultMsg('Loading tokens...');
 
         try {
-            // Default to SOL for input token
+            // Get SOL token 
             const solToken = await fetchTokenMetadata('So11111111111111111111111111111111111111112');
 
             if (isMounted.current) {
-                setInputToken(solToken);
-                setOutputToken(targetToken);
+                if (isSell) {
+                    // For sell: targetToken is input, SOL is output
+                    setInputToken(targetToken);
+                    setOutputToken(solToken);
+                } else {
+                    // For buy: SOL is input, targetToken is output
+                    setInputToken(solToken);
+                    setOutputToken(targetToken);
+                }
 
                 // Reset input value
                 setInputValue('1');
 
-                // Fetch balance and price
-                if (userPublicKey && solToken) {
-                    const balance = await fetchTokenBalance(userPublicKey, solToken);
+                // Fetch balance and price for input token
+                if (userPublicKey) {
+                    // Fetch balance of the appropriate token based on operation
+                    const tokenToCheckBalance = isSell ? targetToken : solToken;
+                    const balance = await fetchTokenBalance(userPublicKey, tokenToCheckBalance);
+                    
                     if (isMounted.current) {
                         setCurrentBalance(balance);
-                        const price = await fetchTokenPrice(solToken);
+                        
+                        // Fetch prices for input and output tokens
+                        const inToken = isSell ? targetToken : solToken;
+                        const outToken = isSell ? solToken : targetToken;
+                        
+                        const inPrice = await fetchTokenPrice(inToken);
+                        const outPrice = await fetchTokenPrice(outToken);
+                        
                         if (isMounted.current) {
-                            setInputTokenPrice(price);
+                            setInputTokenPrice(inPrice);
+                            setOutputTokenPrice(outPrice);
                         }
-                    }
-                }
-
-                // Fetch output token price
-                if (targetToken) {
-                    const outputPrice = await fetchTokenPrice(targetToken);
-                    if (isMounted.current) {
-                        setOutputTokenPrice(outputPrice);
                     }
                 }
             }
@@ -132,7 +152,10 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                 setResultMsg('');
             }
         }
-    }, [targetToken, userPublicKey]);
+    }, [targetToken, userPublicKey, isSell]);
+
+    // Update the header title to show Buy or Sell
+    const headerTitle = isSell ? `Sell ${targetToken.symbol}` : `Buy ${targetToken.symbol}`;
 
     // Estimate swap output amount
     const estimateSwap = useCallback(async () => {
@@ -188,7 +211,16 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
         if (!isMounted.current) return;
 
         try {
-            setInputToken(token);
+            // In sell mode, we should only allow changing the output token (what we're selling for)
+            // In buy mode, we should only allow changing the input token (what we're buying with)
+            if (isSell) {
+                // In sell mode, we're always selling the target token, so we can only change the output (destination)
+                setOutputToken(token);
+            } else {
+                // In buy mode, we're always buying the target token, so we can only change the input (source)
+                setInputToken(token);
+            }
+            
             setShowSelectTokenModal(false);
 
             // Reset input value and fetch new balance
@@ -197,12 +229,26 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
 
             // Fetch balance and price for new token
             if (userPublicKey) {
-                const balance = await fetchTokenBalance(userPublicKey, token);
-                if (isMounted.current) {
-                    setCurrentBalance(balance);
-                    const price = await fetchTokenPrice(token);
+                // Only need to fetch balance for input token (what we're spending)
+                const tokenToCheckBalance = isSell ? inputToken : token;
+                if (tokenToCheckBalance) {
+                    const balance = await fetchTokenBalance(userPublicKey, tokenToCheckBalance);
                     if (isMounted.current) {
-                        setInputTokenPrice(price);
+                        setCurrentBalance(balance);
+                        
+                        // Update prices for both tokens
+                        const inTokenPrice = isSell ? 
+                            await fetchTokenPrice(inputToken!) : 
+                            await fetchTokenPrice(token);
+                        
+                        const outTokenPrice = isSell ? 
+                            await fetchTokenPrice(token) : 
+                            await fetchTokenPrice(outputToken!);
+                        
+                        if (isMounted.current) {
+                            setInputTokenPrice(inTokenPrice);
+                            setOutputTokenPrice(outTokenPrice);
+                        }
                     }
                 }
             }
@@ -213,7 +259,7 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                 setTimeout(() => isMounted.current && setErrorMsg(''), 3000);
             }
         }
-    }, [userPublicKey]);
+    }, [userPublicKey, isSell, inputToken, outputToken]);
 
     // Handle MAX button click
     const handleMaxButtonClick = useCallback(async () => {
@@ -317,9 +363,17 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                     // Reset input field
                     setInputValue('1');
 
-                    // Notify parent component about successful swap
+                    // Provide detailed trade info to parent component
                     if (onSwapComplete) {
-                        onSwapComplete();
+                        onSwapComplete({
+                            success: true,
+                            signature: result.signature,
+                            inputToken,
+                            outputToken,
+                            inputAmount: parseFloat(inputValue),
+                            outputAmount: parseFloat(estimatedOutputAmount),
+                            isSell
+                        });
                     }
 
                     // Auto-close the drawer after successful swap (with a delay)
@@ -342,7 +396,14 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                 setSwapping(false);
             }
         }
-    }, [connected, userPublicKey, inputToken, outputToken, inputValue, currentBalance, estimatedOutputAmount, sendTransaction, onSwapComplete, onClose]);
+    }, [connected, userPublicKey, inputToken, outputToken, inputValue, currentBalance, estimatedOutputAmount, sendTransaction, onSwapComplete, onClose, isSell]);
+
+    // Update the swap button text to say "Buy" or "Sell" instead of "Swap"
+    const getSwapButtonText = useCallback(() => {
+        if (!connected) return 'Connect Wallet';
+        if (isSell) return `Sell ${inputToken?.symbol || ''}`;
+        return `Buy ${outputToken?.symbol || ''}`;
+    }, [connected, isSell, inputToken?.symbol, outputToken?.symbol]);
 
     return (
         <Modal
@@ -357,7 +418,7 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
 
             <View style={styles.drawerContainer}>
                 <View style={styles.headerContainer}>
-                    <Text style={styles.headerTitle}>Swap</Text>
+                    <Text style={styles.headerTitle}>{headerTitle}</Text>
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                         <Ionicons name="close" size={24} color={COLORS.white} />
                     </TouchableOpacity>
@@ -370,7 +431,8 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                         <View style={styles.tokenInputContainer}>
                             <TouchableOpacity
                                 style={styles.tokenSelector}
-                                onPress={() => setShowSelectTokenModal(true)}
+                                onPress={() => isSell ? null : setShowSelectTokenModal(true)}
+                                disabled={isSell}
                             >
                                 {inputToken ? (
                                     <>
@@ -380,11 +442,11 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                                             defaultSource={require('@/assets/images/SENDlogo.png')}
                                         />
                                         <Text style={styles.tokenSymbol}>{inputToken.symbol}</Text>
+                                        {!isSell && <Ionicons name="chevron-down" size={18} color={COLORS.greyLight} />}
                                     </>
                                 ) : (
                                     <Text style={styles.selectTokenText}>Select token</Text>
                                 )}
-                                <Ionicons name="chevron-down" size={18} color={COLORS.greyLight} />
                             </TouchableOpacity>
 
                             <View style={styles.inputContainer}>
@@ -422,7 +484,11 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                     <View style={styles.swapSection}>
                         <Text style={styles.swapSectionLabel}>To</Text>
                         <View style={styles.tokenInputContainer}>
-                            <View style={styles.tokenSelector}>
+                            <TouchableOpacity
+                                style={styles.tokenSelector}
+                                onPress={() => isSell ? setShowSelectTokenModal(true) : null}
+                                disabled={!isSell}
+                            >
                                 {outputToken ? (
                                     <>
                                         <Image
@@ -431,11 +497,12 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                                             defaultSource={require('@/assets/images/SENDlogo.png')}
                                         />
                                         <Text style={styles.tokenSymbol}>{outputToken.symbol}</Text>
+                                        {isSell && <Ionicons name="chevron-down" size={18} color={COLORS.greyLight} />}
                                     </>
                                 ) : (
                                     <Text style={styles.selectTokenText}>Select token</Text>
                                 )}
-                            </View>
+                            </TouchableOpacity>
 
                             <View style={styles.outputContainer}>
                                 <Text style={styles.outputAmount}>{estimatedOutputAmount}</Text>
@@ -473,7 +540,7 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                             <ActivityIndicator size="small" color={COLORS.white} />
                         ) : (
                             <Text style={styles.swapButtonText}>
-                                {connected ? 'Swap' : 'Connect Wallet to Swap'}
+                                {getSwapButtonText()}
                             </Text>
                         )}
                     </TouchableOpacity>

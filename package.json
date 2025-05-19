@@ -131,6 +131,7 @@
     "@react-native/eslint-config": "0.77.0",
     "@types/bn.js": "^5.1.6",
     "@types/jest": "^29.5.13",
+    "@types/lodash": "^4.17.16",
     "@types/react": "^18.2.6",
     "@types/redux": "^3.6.0",
     "babel-plugin-transform-remove-console": "^6.9.4",

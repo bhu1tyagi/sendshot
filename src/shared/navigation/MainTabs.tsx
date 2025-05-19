@@ -237,16 +237,16 @@ export default function MainTabs() {
             tabBarIcon: ({ focused, size }) => (
               <AnimatedTabIcon
                 focused={focused}
-                size={size * 1.2}
+                size={size * 1.4}
                 icon={
-                  Icons.HoldingsIcon as React.ComponentType<{
+                  Icons.ClockHistoryIcon as React.ComponentType<{
                     width: number;
                     height: number;
                     color?: string;
                   }>
                 }
                 iconSelected={
-                  Icons.HoldingsIconSelected as React.ComponentType<{
+                  Icons.ClockHistoryIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
                     color?: string;

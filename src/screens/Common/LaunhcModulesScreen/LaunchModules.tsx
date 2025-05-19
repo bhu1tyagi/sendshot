@@ -62,15 +62,15 @@ const modules = [
     usePngIcon: true,
     protocolType: 'meteora',
   },
-  {
-    key: 'tokenmill',
-    title: 'Token Mill',
-    subtitle: 'Launch tokens with customizable bonding curve',
-    navigateTo: 'TokenMill',
-    iconComponent: Icons.TokenMillIcon,
-    backgroundImage: require('@/assets/images/TokenMill_bg.png'),
-    protocolType: 'tokenmill',
-  },
+  // {
+  //   key: 'tokenmill',
+  //   title: 'Token Mill',
+  //   subtitle: 'Launch tokens with customizable bonding curve',
+  //   navigateTo: 'TokenMill',
+  //   iconComponent: Icons.TokenMillIcon,
+  //   backgroundImage: require('@/assets/images/TokenMill_bg.png'),
+  //   protocolType: 'tokenmill',
+  // },
 ];
 
 // Define styles for the LaunchPads screen
