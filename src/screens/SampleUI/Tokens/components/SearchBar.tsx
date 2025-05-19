@@ -23,10 +23,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ searchQuery, setSearchQuery }) =>
             clearTimeout(debounceTimeout.current);
         }
 
-        // Set a new debounce
+        // Set a new debounce with slightly longer timeout for API calls
         debounceTimeout.current = setTimeout(() => {
             setSearchQuery(text);
-        }, 300);
+        }, 500); // Increased from 300ms to 500ms for API calls
     }, [setSearchQuery]);
 
     // Clear search with proper cleanup

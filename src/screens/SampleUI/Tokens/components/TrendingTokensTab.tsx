@@ -1,13 +1,16 @@
-import React, { useCallback, memo, useMemo } from 'react';
+import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/shared/state/store';
-import { fetchTrendingTokens } from '@/shared/state/tokens';
+import { fetchTrendingTokens, TrendingTokenData } from '@/shared/state/tokens';
 import styles from '../TokenFeedScreenStyles';
 import { TabComponentProps } from '../utils/types';
 import SearchBar from './SearchBar';
 import StableTrendingFlatList from './StableTrendingFlatList';
 import TokenSkeletonLoader from '../TokenSkeletonLoader';
+import { searchTokens } from '@/modules/dataModule/services/tokenService';
+import { TokenInfo } from '@/modules/dataModule/types/tokenTypes';
+import { TokenDisplay } from '../utils/types';
 
 interface TrendingTokensTabProps extends TabComponentProps {
     renderItem: any;
@@ -44,6 +47,20 @@ const ErrorComponent = memo(({ error, onRetry }: { error: string, onRetry: () =>
     </View>
 ));
 
+// Convert TokenInfo from API to match TrendingTokenData format for UI compatibility
+function convertTokenInfoToTrendingFormat(tokens: TokenInfo[]): TrendingTokenData[] {
+    return tokens.map((token, index) => ({
+        id: `search-${token.address}-${index}`,
+        address: token.address,
+        name: token.name,
+        symbol: token.symbol,
+        logoURI: token.logoURI,
+        price: token.price || 0,
+        price24hChangePercent: token.priceChange24h,
+        rank: index + 1
+    }));
+}
+
 const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
     searchQuery = '',
     setSearchQuery = () => { },
@@ -60,6 +77,11 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
     console.log('[TrendingTokensTab] Rendering component');
     const dispatch = useDispatch();
 
+    // State for API search results
+    const [searchResults, setSearchResults] = useState<TrendingTokenData[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+
     // Memoize the search query setter to maintain referential equality
     const handleSearchQueryChange = useCallback((query: string) => {
         setSearchQuery(query);
@@ -67,34 +89,102 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
 
     const {
         trendingTokens,
-        filteredTrendingTokens,
         trendingTokensLoading,
         trendingTokensError,
         loadingMoreTrendingTokens
     } = useSelector((state: RootState) => state.tokens);
 
+    // Effect to perform API search when searchQuery changes
+    useEffect(() => {
+        // Clear search results when query is empty
+        if (!searchQuery || searchQuery.trim() === '') {
+            setSearchResults([]);
+            setIsSearching(false);
+            setSearchError(null);
+            return;
+        }
+
+        // Set searching state
+        setIsSearching(true);
+        setSearchError(null);
+
+        // Perform API search
+        const performSearch = async () => {
+            try {
+                const results = await searchTokens({
+                    keyword: searchQuery.trim(),
+                    limit: 20 // Maximum allowed by Birdeye API (1-20 range)
+                });
+
+                // Convert results to compatible format
+                const formattedResults = convertTokenInfoToTrendingFormat(results);
+                setSearchResults(formattedResults);
+            } catch (error) {
+                console.error('[TrendingTokensTab] Search error:', error);
+                setSearchError('Failed to search tokens. Please try again.');
+                setSearchResults([]);
+            } finally {
+                setIsSearching(false);
+            }
+        };
+
+        performSearch();
+    }, [searchQuery]);
+
     const handleRetry = useCallback(() => {
-        dispatch(fetchTrendingTokens(0) as any);
-    }, [dispatch]);
+        if (searchQuery) {
+            // Retry search
+            setSearchQuery(searchQuery);
+        } else {
+            // Retry trending tokens fetch
+            dispatch(fetchTrendingTokens(0) as any);
+        }
+    }, [dispatch, searchQuery, setSearchQuery]);
+
+    // Determine which data to display: search results or trending tokens
+    const displayData = useMemo(() => {
+        return searchQuery ? searchResults : trendingTokens;
+    }, [searchQuery, searchResults, trendingTokens]);
 
     // Memoize the content based on the current state
     const content = useMemo(() => {
-        if (trendingTokensLoading && trendingTokens.length === 0) {
+        // Show loading state when either trending tokens are loading (with no data) or search is in progress
+        if ((trendingTokensLoading && trendingTokens.length === 0) ||
+            (isSearching && searchResults.length === 0)) {
             return <LoadingSkeletons renderSkeletons={renderSkeletons} />;
-        } else if (trendingTokensError) {
-            return <ErrorComponent error={trendingTokensError} onRetry={handleRetry} />;
-        } else {
+        }
+        // Show error state
+        else if ((trendingTokensError && !searchQuery) || (searchError && searchQuery)) {
+            const errorMessage = searchQuery && searchError
+                ? searchError
+                : trendingTokensError || 'An error occurred';
+
+            return <ErrorComponent
+                error={errorMessage}
+                onRetry={handleRetry}
+            />;
+        }
+        // Show no results state for search
+        else if (searchQuery && searchResults.length === 0 && !isSearching) {
+            return (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>No tokens found for "{searchQuery}"</Text>
+                </View>
+            );
+        }
+        // Show content
+        else {
             return (
                 <StableTrendingFlatList
-                    data={filteredTrendingTokens}
+                    data={displayData}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     getItemLayout={getItemLayout}
-                    handleLoadMore={handleLoadMore}
+                    handleLoadMore={!searchQuery ? handleLoadMore : undefined} // Only load more for trending, not search
                     handleScroll={handleScroll}
                     handleScrollEnd={handleScrollEnd}
-                    renderFooter={renderFooter}
-                    loadingMoreTrendingTokens={loadingMoreTrendingTokens}
+                    renderFooter={!searchQuery ? renderFooter : () => null} // Only show footer for trending, not search
+                    loadingMoreTrendingTokens={!searchQuery && loadingMoreTrendingTokens}
                     searchQuery={searchQuery}
                     keyboardShouldPersistTaps="always"
                 />
@@ -104,7 +194,11 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
         trendingTokensLoading,
         trendingTokens.length,
         trendingTokensError,
-        filteredTrendingTokens,
+        isSearching,
+        searchResults.length,
+        searchError,
+        searchQuery,
+        displayData,
         renderItem,
         keyExtractor,
         getItemLayout,
@@ -113,7 +207,6 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
         handleScrollEnd,
         renderFooter,
         loadingMoreTrendingTokens,
-        searchQuery,
         renderSkeletons,
         handleRetry
     ]);
