@@ -123,17 +123,17 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                     // Fetch balance of the appropriate token based on operation
                     const tokenToCheckBalance = isSell ? targetToken : solToken;
                     const balance = await fetchTokenBalance(userPublicKey, tokenToCheckBalance);
-                    
+
                     if (isMounted.current) {
                         setCurrentBalance(balance);
-                        
+
                         // Fetch prices for input and output tokens
                         const inToken = isSell ? targetToken : solToken;
                         const outToken = isSell ? solToken : targetToken;
-                        
+
                         const inPrice = await fetchTokenPrice(inToken);
                         const outPrice = await fetchTokenPrice(outToken);
-                        
+
                         if (isMounted.current) {
                             setInputTokenPrice(inPrice);
                             setOutputTokenPrice(outPrice);
@@ -220,7 +220,7 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                 // In buy mode, we're always buying the target token, so we can only change the input (source)
                 setInputToken(token);
             }
-            
+
             setShowSelectTokenModal(false);
 
             // Reset input value and fetch new balance
@@ -235,16 +235,16 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                     const balance = await fetchTokenBalance(userPublicKey, tokenToCheckBalance);
                     if (isMounted.current) {
                         setCurrentBalance(balance);
-                        
+
                         // Update prices for both tokens
-                        const inTokenPrice = isSell ? 
-                            await fetchTokenPrice(inputToken!) : 
+                        const inTokenPrice = isSell ?
+                            await fetchTokenPrice(inputToken!) :
                             await fetchTokenPrice(token);
-                        
-                        const outTokenPrice = isSell ? 
-                            await fetchTokenPrice(token) : 
+
+                        const outTokenPrice = isSell ?
+                            await fetchTokenPrice(token) :
                             await fetchTokenPrice(outputToken!);
-                        
+
                         if (isMounted.current) {
                             setInputTokenPrice(inTokenPrice);
                             setOutputTokenPrice(outTokenPrice);
@@ -417,10 +417,13 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
             </TouchableWithoutFeedback>
 
             <View style={styles.drawerContainer}>
+                {/* Drag Handle */}
+                <View style={styles.dragHandle} />
+
                 <View style={styles.headerContainer}>
                     <Text style={styles.headerTitle}>{headerTitle}</Text>
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color={COLORS.white} />
+                        <Ionicons name="close-circle" size={28} color={COLORS.greyLight} />
                     </TouchableOpacity>
                 </View>
 
@@ -436,13 +439,17 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                             >
                                 {inputToken ? (
                                     <>
-                                        <Image
-                                            source={{ uri: inputToken.logoURI }}
-                                            style={styles.tokenLogo}
-                                            defaultSource={require('@/assets/images/SENDlogo.png')}
-                                        />
+                                        <View style={styles.tokenLogoWrapper}>
+                                            <Image
+                                                source={{ uri: inputToken.logoURI }}
+                                                style={styles.tokenLogo}
+                                                defaultSource={require('@/assets/images/SENDlogo.png')}
+                                            />
+                                        </View>
                                         <Text style={styles.tokenSymbol}>{inputToken.symbol}</Text>
-                                        {!isSell && <Ionicons name="chevron-down" size={18} color={COLORS.greyLight} />}
+                                        {!isSell && <View style={styles.chevronContainer}>
+                                            <Ionicons name="chevron-down" size={16} color={COLORS.greyLight} />
+                                        </View>}
                                     </>
                                 ) : (
                                     <Text style={styles.selectTokenText}>Select token</Text>
@@ -465,24 +472,24 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                             </View>
                         </View>
 
-                        {inputToken && inputTokenPrice && (
+                        {/* {inputToken && inputTokenPrice && (
                             <Text style={styles.tokenInfo}>
                                 Balance: {currentBalance !== null ? currentBalance.toFixed(4) : '...'} •
                                 {' '}{calculateUsdValue(inputValue, inputTokenPrice)}
                             </Text>
-                        )}
+                        )} */}
                     </View>
 
                     {/* Swap Direction Indicator */}
                     <View style={styles.swapDirectionContainer}>
                         <View style={styles.swapDirectionIcon}>
-                            <Ionicons name="arrow-down" size={20} color={COLORS.white} />
+                            <Ionicons name="arrow-down" size={18} color={COLORS.white} />
                         </View>
                     </View>
 
                     {/* To (Output) Token Section */}
                     <View style={styles.swapSection}>
-                        <Text style={styles.swapSectionLabel}>To</Text>
+                        <Text style={styles.swapSectionLabel}>To (Estimated)</Text>
                         <View style={styles.tokenInputContainer}>
                             <TouchableOpacity
                                 style={styles.tokenSelector}
@@ -491,13 +498,17 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                             >
                                 {outputToken ? (
                                     <>
-                                        <Image
-                                            source={{ uri: outputToken.logoURI }}
-                                            style={styles.tokenLogo}
-                                            defaultSource={require('@/assets/images/SENDlogo.png')}
-                                        />
+                                        <View style={styles.tokenLogoWrapper}>
+                                            <Image
+                                                source={{ uri: outputToken.logoURI }}
+                                                style={styles.tokenLogo}
+                                                defaultSource={require('@/assets/images/SENDlogo.png')}
+                                            />
+                                        </View>
                                         <Text style={styles.tokenSymbol}>{outputToken.symbol}</Text>
-                                        {isSell && <Ionicons name="chevron-down" size={18} color={COLORS.greyLight} />}
+                                        {isSell && <View style={styles.chevronContainer}>
+                                            <Ionicons name="chevron-down" size={16} color={COLORS.greyLight} />
+                                        </View>}
                                     </>
                                 ) : (
                                     <Text style={styles.selectTokenText}>Select token</Text>
@@ -509,23 +520,33 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
                             </View>
                         </View>
 
-                        {outputToken && outputTokenPrice && (
+                        {/* {outputToken && outputTokenPrice && (
                             <Text style={styles.tokenInfo}>
                                 {calculateUsdValue(estimatedOutputAmount, outputTokenPrice)}
                             </Text>
-                        )}
+                        )} */}
                     </View>
 
                     {/* Status Messages */}
                     {errorMsg ? (
                         <View style={styles.errorContainer}>
+                            <Ionicons name="alert-circle" size={18} color={COLORS.errorRed} style={styles.statusIcon} />
                             <Text style={styles.errorText}>{errorMsg}</Text>
                         </View>
                     ) : resultMsg ? (
                         <View style={styles.resultContainer}>
+                            <Ionicons name="information-circle" size={18} color="#47D18C" style={styles.statusIcon} />
                             <Text style={styles.resultText}>{resultMsg}</Text>
                         </View>
                     ) : null}
+
+                    {/* Rate Information */}
+                    <View style={styles.rateInfoContainer}>
+                        <Text style={styles.rateInfoLabel}>Rate</Text>
+                        <Text style={styles.rateInfoValue}>
+                            1 {inputToken?.symbol || '--'} ≈ {(parseFloat(estimatedOutputAmount) / parseFloat(inputValue || '1')).toFixed(6)} {outputToken?.symbol || '--'}
+                        </Text>
+                    </View>
 
                     {/* Swap Button */}
                     <TouchableOpacity
@@ -547,7 +568,8 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
 
                     {/* Powered By */}
                     <View style={styles.poweredByContainer}>
-                        <Text style={styles.poweredByText}>Powered by Jupiter</Text>
+                        <Text style={styles.poweredByText}>Powered by</Text>
+                        <Text style={styles.jupiterText}>Jupiter</Text>
                     </View>
                 </View>
             </View>
@@ -565,18 +587,18 @@ const SwapDrawer: React.FC<SwapDrawerProps> = ({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
     },
     drawerContainer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: COLORS.background,
+        backgroundColor: COLORS.darkerBackground,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        paddingTop: 12,
-        paddingBottom: Platform.OS === 'ios' ? 48 : 24,
+        paddingTop: 8,
+        paddingBottom: Platform.OS === 'ios' ? 36 : 20,
         maxHeight: height * 0.9,
         shadowColor: '#000',
         shadowOffset: {
@@ -590,12 +612,21 @@ const styles = StyleSheet.create({
         borderColor: COLORS.borderDarkColor,
         borderBottomWidth: 0,
     },
+    dragHandle: {
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.borderDarkColor,
+        alignSelf: 'center',
+        marginTop: 8,
+        marginBottom: 6,
+    },
     headerContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 24,
-        paddingVertical: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderDarkColor,
     },
@@ -605,59 +636,80 @@ const styles = StyleSheet.create({
         color: COLORS.white,
     },
     closeButton: {
-        padding: 4,
+        padding: 2,
     },
     contentContainer: {
-        padding: 24,
+        padding: 16,
     },
     swapSection: {
-        marginBottom: 16,
+        marginBottom: 12,
     },
     swapSectionLabel: {
         fontSize: TYPOGRAPHY.size.sm,
         color: COLORS.greyLight,
-        marginBottom: 8,
+        marginBottom: 6,
+        fontWeight: '600',
     },
     tokenInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: COLORS.lighterBackground,
+        backgroundColor: COLORS.background,
         borderRadius: 16,
-        padding: 16,
+        padding: 12,
         borderWidth: 1,
         borderColor: COLORS.borderDarkColor,
     },
     tokenSelector: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingRight: 12,
+        paddingRight: 10,
         borderRightWidth: 1,
         borderRightColor: COLORS.borderDarkColor,
+        height: 36,
+    },
+    tokenLogoWrapper: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: COLORS.lighterBackground,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 6,
+        padding: 1,
+        borderWidth: 1,
+        borderColor: COLORS.borderDarkColor,
     },
     tokenLogo: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        marginRight: 8,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+    },
+    chevronContainer: {
+        backgroundColor: COLORS.lighterBackground,
+        borderRadius: 10,
+        width: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     tokenSymbol: {
         fontSize: TYPOGRAPHY.size.md,
         fontWeight: '600',
         color: COLORS.white,
-        marginRight: 8,
+        marginRight: 6,
     },
     selectTokenText: {
         fontSize: TYPOGRAPHY.size.md,
         color: COLORS.brandPrimary,
-        marginRight: 8,
+        marginRight: 6,
     },
     inputContainer: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        marginLeft: 12,
+        marginLeft: 10,
     },
     amountInput: {
         flex: 1,
@@ -672,7 +724,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 8,
-        marginLeft: 8,
+        marginLeft: 6,
     },
     maxButtonText: {
         fontSize: TYPOGRAPHY.size.xs,
@@ -682,7 +734,7 @@ const styles = StyleSheet.create({
     outputContainer: {
         flex: 1,
         alignItems: 'flex-end',
-        marginLeft: 12,
+        marginLeft: 10,
     },
     outputAmount: {
         fontSize: TYPOGRAPHY.size.lg,
@@ -692,52 +744,93 @@ const styles = StyleSheet.create({
     tokenInfo: {
         fontSize: TYPOGRAPHY.size.xs,
         color: COLORS.greyMid,
-        marginTop: 8,
+        marginTop: 6,
+        marginLeft: 2,
     },
     swapDirectionContainer: {
         alignItems: 'center',
-        marginVertical: 8,
+        marginVertical: 4,
     },
     swapDirectionIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: COLORS.brandPrimary,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 3,
+        borderColor: COLORS.darkerBackground,
+    },
+    statusIcon: {
+        marginRight: 6,
     },
     errorContainer: {
-        backgroundColor: 'rgba(255, 87, 87, 0.1)',
-        padding: 12,
-        borderRadius: 8,
-        marginVertical: 16,
+        backgroundColor: 'rgba(255, 87, 87, 0.15)',
+        padding: 10,
+        borderRadius: 10,
+        marginVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     errorText: {
         fontSize: TYPOGRAPHY.size.sm,
         color: COLORS.errorRed,
-        textAlign: 'center',
+        flex: 1,
     },
     resultContainer: {
-        backgroundColor: 'rgba(71, 209, 140, 0.1)',
-        padding: 12,
-        borderRadius: 8,
-        marginVertical: 16,
+        backgroundColor: 'rgba(71, 209, 140, 0.15)',
+        padding: 10,
+        borderRadius: 10,
+        marginVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     resultText: {
         fontSize: TYPOGRAPHY.size.sm,
         color: '#47D18C',
-        textAlign: 'center',
+        flex: 1,
+    },
+    rateInfoContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        backgroundColor: COLORS.lighterBackground,
+        borderRadius: 10,
+        marginVertical: 12,
+        borderWidth: 1,
+        borderColor: COLORS.borderDarkColor,
+    },
+    rateInfoLabel: {
+        fontSize: TYPOGRAPHY.size.sm,
+        color: COLORS.greyLight,
+        fontWeight: '500',
+    },
+    rateInfoValue: {
+        fontSize: TYPOGRAPHY.size.sm,
+        color: COLORS.white,
+        fontWeight: '600',
     },
     swapButton: {
         backgroundColor: COLORS.brandPrimary,
-        paddingVertical: 16,
-        borderRadius: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 16,
+        marginTop: 12,
+        shadowColor: COLORS.brandPrimary,
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
     },
     disabledButton: {
-        opacity: 0.6,
+        backgroundColor: `${COLORS.brandPrimary}80`,
+        shadowOpacity: 0,
+        elevation: 0,
     },
     swapButtonText: {
         fontSize: TYPOGRAPHY.size.md,
@@ -745,12 +838,20 @@ const styles = StyleSheet.create({
         color: COLORS.white,
     },
     poweredByContainer: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 16,
+        justifyContent: 'center',
+        marginTop: 14,
     },
     poweredByText: {
         fontSize: TYPOGRAPHY.size.xs,
         color: COLORS.greyMid,
+        marginRight: 4,
+    },
+    jupiterText: {
+        fontSize: TYPOGRAPHY.size.xs,
+        fontWeight: '600',
+        color: '#FFA726',
     },
 });
 
