@@ -53,15 +53,6 @@ const modules = [
     protocolType: 'raydium',
   },
   {
-    key: 'tokenmill',
-    title: 'Token Mill',
-    subtitle: 'Launch tokens with customizable bonding curve',
-    navigateTo: 'TokenMill',
-    iconComponent: Icons.TokenMillIcon,
-    backgroundImage: require('@/assets/images/TokenMill_bg.png'),
-    protocolType: 'tokenmill',
-  },
-  {
     key: 'meteora',
     title: 'Meteora',
     subtitle: 'Powerful DEX with concentrated liquidity',
@@ -70,6 +61,15 @@ const modules = [
     backgroundImage: require('@/assets/images/new_meteora_cover.png'),
     usePngIcon: true,
     protocolType: 'meteora',
+  },
+  {
+    key: 'tokenmill',
+    title: 'Token Mill',
+    subtitle: 'Launch tokens with customizable bonding curve',
+    navigateTo: 'TokenMill',
+    iconComponent: Icons.TokenMillIcon,
+    backgroundImage: require('@/assets/images/TokenMill_bg.png'),
+    protocolType: 'tokenmill',
   },
 ];
 

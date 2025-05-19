@@ -91,8 +91,15 @@ export default function TokenCreationForm({
 
     // Get wallet and connection
     const wallet = useWallet();
-    // Create a connection to the Solana network
-    const connection = new Connection(HELIUS_STAKED_URL, 'confirmed');
+    // Create a connection to the Solana network with better configuration
+    const connection = new Connection(
+        HELIUS_STAKED_URL, 
+        {
+            commitment: 'confirmed',
+            confirmTransactionInitialTimeout: 120000, // 2 minutes 
+            disableRetryOnRateLimit: false
+        }
+    );
 
     // Add new state variables for parsed numeric values
     const [parsedInitialMarketCap, setParsedInitialMarketCap] = useState(100);

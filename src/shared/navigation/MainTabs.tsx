@@ -212,13 +212,13 @@ export default function MainTabs() {
                 focused={focused}
                 size={size * 1.2}
                 icon={
-                  Icons.SwapNavIcon as React.ComponentType<{
+                  Icons.FeedIcon as React.ComponentType<{
                     width: number;
                     height: number;
                   }>
                 }
                 iconSelected={
-                  Icons.SwapNavIconSelected as React.ComponentType<{
+                  Icons.FeedIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
                   }>

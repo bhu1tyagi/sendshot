@@ -4,7 +4,7 @@ import { JupiterService, JupiterSwapResponse } from './jupiterService';
 import { RaydiumService } from '../../raydium/services/raydiumService';
 import { Direction } from '../../pumpFun/services/pumpSwapService';
 import { TransactionService } from '../../walletProviders/services/transaction/transactionService';
-import { COMMISSION_WALLET, SERVER_URL } from '@env';
+import { COMMISSION_WALLET, HELIUS_STAKED_URL, SERVER_URL } from '@env';
 import { Alert } from 'react-native';
 
 const API_BASE_URL = SERVER_URL || 'http://localhost:8080';
@@ -25,8 +25,8 @@ export interface SwapCallback {
 }
 
 // Fee configuration
-const FEE_PERCENTAGE = 0.5; // 0.5% default fee
-const RAYDIUM_FEE_PERCENTAGE = 0.5; // 0.5% fee for Raydium
+const FEE_PERCENTAGE = 0.05; // 0.05% default fee
+const RAYDIUM_FEE_PERCENTAGE = 0.05; // 0.05% fee for Raydium
 const FEE_RECIPIENT = COMMISSION_WALLET;
 
 /**
@@ -39,22 +39,23 @@ const FEE_RECIPIENT = COMMISSION_WALLET;
  */
 export class TradeService {
   /**
-   * Calculate fee amount from an output amount
+   * Calculate fee amount from an input amount in SOL
    */
-  static calculateFeeAmount(outputAmount: number, provider: SwapProvider = 'Jupiter'): number {
+  static calculateFeeAmount(inputAmount: number, provider: SwapProvider = 'Jupiter'): number {
     // Different fee percentage based on provider
     const feePercentage = provider === 'Raydium' ? RAYDIUM_FEE_PERCENTAGE : FEE_PERCENTAGE;
     
-    const feeAmount = Math.floor(outputAmount * (feePercentage / 100));
-    console.log(`[TradeService] 🧮 Calculated ${provider} fee: ${feeAmount} lamports (${feePercentage}% of ${outputAmount})`);
+    const feeAmount = Math.floor(inputAmount * (feePercentage / 100));
+    console.log(`[TradeService] 🧮 Calculated ${provider} fee: ${feeAmount} lamports (${feePercentage}% of ${inputAmount} SOL lamports)`);
     return feeAmount;
   }
 
   /**
    * Creates a fee transaction to collect fees on behalf of the project
+   * @param inputAmountLamports The input amount in SOL lamports
    */
   static async collectFee(
-    outputAmount: number,
+    inputAmountLamports: number,
     walletPublicKey: PublicKey,
     sendTransaction: (
       transaction: Transaction | VersionedTransaction,
@@ -65,21 +66,21 @@ export class TradeService {
     provider: SwapProvider = 'Jupiter'
   ): Promise<string | null> {
     console.log(`[TradeService] 🔍 STARTING FEE COLLECTION FOR ${provider}`);
-    console.log(`[TradeService] 🔍 Output amount: ${outputAmount}`);
+    console.log(`[TradeService] 🔍 Input amount (SOL lamports): ${inputAmountLamports}`);
     console.log(`[TradeService] 🔍 Wallet: ${walletPublicKey.toString()}`);
     
     try {
       // Calculate fee amount based on provider
-      const feeAmount = this.calculateFeeAmount(outputAmount, provider);
+      const feeAmount = this.calculateFeeAmount(inputAmountLamports, provider);
       const feePercentage = provider === 'Raydium' ? RAYDIUM_FEE_PERCENTAGE : FEE_PERCENTAGE;
-      
+      console.log(`[TradeService] 🔍 Fee amount: ${feeAmount} SOL lamports (${feePercentage}% of ${inputAmountLamports} SOL lamports)`);
       if (feeAmount <= 0) {
         console.log('[TradeService] ⚠️ Fee amount too small, skipping fee collection');
         return null;
       }
       
       // Create direct RPC connection
-      const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+      const connection = new Connection(HELIUS_STAKED_URL, 'confirmed');
       
       // Get a fresh blockhash
       console.log('[TradeService] 🔗 Getting latest blockhash');
@@ -101,7 +102,7 @@ export class TradeService {
       feeTx.feePayer = walletPublicKey;
       
       // Automatically send the fee transaction without user confirmation
-      console.log(`[TradeService] 💰 Automatically collecting ${feePercentage}% fee (${feeAmount} lamports)`);
+      console.log(`[TradeService] 💰 Automatically collecting ${feePercentage}% fee (${feeAmount} SOL lamports)`);
       
       if (statusCallback) {
         console.log('[TradeService] 📱 Calling status callback for fee transaction');
@@ -132,6 +133,7 @@ export class TradeService {
         TransactionService.showSuccess(signature, 'transfer');
         
         return signature;
+
       } catch (sendError) {
         console.error('[TradeService] ❌ Error sending fee:', sendError);
         if (sendError instanceof Error) {
@@ -345,15 +347,16 @@ export class TradeService {
                       // Transaction is confirmed or likely to be confirmed
                       updateStatus('Transaction verified successful!');
                       
-                      // Estimate output amount the same way as successful case
-                      const estimatedOutputAmount = numericAmount * 0.98;
-                      console.log('[TradeService] PumpSwap - Estimated output amount after delayed verification:', estimatedOutputAmount);
-                      
+                      // Use SOL input amount if input token is SOL, otherwise use minimum
+                      const solAmount = inputToken.symbol === 'SOL' 
+                        ? numericAmount * 1e9 // Convert SOL to lamports
+                        : 0.005 * 1e9; // Use 0.005 SOL as minimum fee base
+                        
                       return {
                         success: true,
                         signature: txError.signature,
                         inputAmount: numericAmount,
-                        outputAmount: estimatedOutputAmount
+                        outputAmount: numericAmount * 0.98 // Estimated output amount
                       };
                     }
                   } catch (verifyError) {
@@ -388,53 +391,55 @@ export class TradeService {
       // If the swap was successful, collect the fee
       if (swapResponse.success) {
         console.log('[TradeService] 🎉 Swap successful, preparing to collect fee');
-        console.log(`[TradeService] 📊 Swap output amount: ${swapResponse.outputAmount}`);
         
-        if (swapResponse.outputAmount > 0) {
-          try {
-            console.log('[TradeService] 💸 Proceeding with fee collection');
-            
-            // Get status update function
-            const statusCallback = callbacks?.statusCallback || (() => {});
-            
-            // Collect fee - will create and send a separate transaction
-            // This doesn't affect the success of the main swap
-            const feeSignature = await this.collectFee(
-              swapResponse.outputAmount,
-              walletPublicKey,
-              sendTransaction,
-              statusCallback,
-              provider
-            );
-            
-            if (feeSignature) {
-              console.log('[TradeService] ✅ Fee collection successful with signature:', feeSignature);
-            } else {
-              console.log('[TradeService] ℹ️ Fee collection completed without signature');
-            }
-            
-            // Send a final status update to signal the entire process is complete
-            if (statusCallback) {
-              statusCallback('Transaction complete! ✓');
-            }
-          } catch (feeError) {
-            console.error('[TradeService] ❌ Error collecting fee, but swap was successful:', feeError);
-            if (feeError instanceof Error) {
-              console.error('[TradeService] ❌ Fee error message:', feeError.message);
-              console.error('[TradeService] ❌ Fee error stack:', feeError.stack);
-            }
-            
-            // Even if fee collection failed, the swap was successful, so mark as complete
-            if (callbacks?.statusCallback) {
-              callbacks.statusCallback('Swap completed successfully!');
-            }
-          }
-        } else {
-          console.log('[TradeService] ⚠️ Output amount is zero or invalid, cannot collect fee');
-          console.log('[TradeService] ℹ️ outputAmount value:', swapResponse.outputAmount);
-          console.log('[TradeService] ℹ️ outputAmount type:', typeof swapResponse.outputAmount);
+        try {
+          // For fee calculation, we need to ensure we're using SOL amount
+          let solInputAmount: number;
           
-          // Mark as complete even if we couldn't collect a fee
+          // If input token is SOL, use the inputAmount directly
+          if (inputToken.symbol === 'SOL') {
+            // Convert to lamports if needed
+            solInputAmount = this.toBaseUnits(inputAmount, 9); // SOL has 9 decimals
+            console.log(`[TradeService] 💸 Using SOL input amount for fee: ${solInputAmount} lamports`);
+          } else {
+            // If input token is not SOL, use a fixed minimum fee in lamports
+            // This is a simplified approach - in a production system, you might want to 
+            // convert the input token value to SOL using an oracle or price feed
+            solInputAmount = this.toBaseUnits("0.005", 9); // Use 0.005 SOL as a minimum fee base
+            console.log(`[TradeService] 💸 Non-SOL input token, using minimum fee base: ${solInputAmount} lamports`);
+          }
+          
+          // Get status update function
+          const statusCallback = callbacks?.statusCallback || (() => {});
+          
+          // Collect fee - will create and send a separate transaction
+          // This doesn't affect the success of the main swap
+          const feeSignature = await this.collectFee(
+            solInputAmount,
+            walletPublicKey,
+            sendTransaction,
+            statusCallback,
+            provider
+          );
+          
+          // if (feeSignature) {
+          //   console.log('[TradeService] ✅ Fee collection successful with signature:', feeSignature);
+          // } else {
+          //   console.log('[TradeService] ℹ️ Fee collection completed without signature');
+          // }
+          
+          // // Send a final status update to signal the entire process is complete
+          // if (statusCallback) {
+          //   statusCallback('Transaction complete! ✓');
+          // }
+        } catch (feeError) {
+          console.error('[TradeService] ❌ Error collecting fee, but swap was successful:', feeError);
+          if (feeError instanceof Error) {
+            console.error('[TradeService] ❌ Fee error message:', feeError.message);
+            console.error('[TradeService] ❌ Fee error stack:', feeError.stack);
+          }
+          
+          // Even if fee collection failed, the swap was successful, so mark as complete
           if (callbacks?.statusCallback) {
             callbacks.statusCallback('Swap completed successfully!');
           }

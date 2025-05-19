@@ -14,6 +14,7 @@ import userRoutes from './routes/userRoutes';
 import * as UserController from './controllers/userController';
 import { runMigrations, generateMigrationInstructions } from './db/migration';
 import supabase from './db/supabase';
+import jupiterSwapRouter from './routes/swap/jupiterSwapRoutes';
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -39,6 +40,7 @@ const server = http.createServer(app);
 app.use('/api/pumpfun', launchRouter);
 app.use('/api/raydium/launchpad', raydiumLaunchpadRoutes);
 app.use('/api/pump-swap', pumpSwapRouter);
+app.use('/api/jupiter', jupiterSwapRouter);
 // Specific routes should come before general routes
 app.use('/api/meteora', meteoraDBCRouter);
 app.use('/api/tokens', tokenRoutes);

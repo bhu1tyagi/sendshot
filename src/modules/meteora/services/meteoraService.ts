@@ -211,15 +211,15 @@ export const buildCurveByMarketCap = async (
     
     let txSignature;
     try {
-      // Try to sign and send the transaction with confirmation
+      // Try to sign and send the transaction with confirmation - INCREASED TIMEOUT AND RETRIES
       txSignature = await wallet.sendBase64Transaction(
         result.transaction,
         connection,
         { 
           confirmTransaction: true, 
           statusCallback: onStatusUpdate,
-          maxRetries: 60, // Increase maximum retries
-          confirmationTimeout: 60000 // Increase timeout to 60 seconds
+          maxRetries: 120, // Doubled to 120 retries
+          confirmationTimeout: 180000 // Tripled to 3 minutes
         }
       );
     } catch (confirmError) {
@@ -236,25 +236,61 @@ export const buildCurveByMarketCap = async (
       
       // Wait a few seconds to allow transaction to propagate
       onStatusUpdate?.('Transaction sent. Waiting for network propagation...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Increased to 10 seconds wait
       
-      // Manually check if transaction succeeded
-      try {
-        const status = await connection.getSignatureStatus(txSignature);
-        console.log('Transaction status:', status);
-        
-        if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
-          onStatusUpdate?.('Transaction confirmed manually!');
-        } else {
-          onStatusUpdate?.('Transaction status unknown. Please check explorer.');
+      // Multiple attempts to check confirmation
+      let confirmed = false;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!confirmed && attempts < maxAttempts) {
+        attempts++;
+        try {
+          onStatusUpdate?.(`Checking transaction status (attempt ${attempts}/${maxAttempts})...`);
+          const status = await connection.getSignatureStatus(txSignature);
+          console.log('Transaction status:', status);
+          
+          if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
+            onStatusUpdate?.('Transaction confirmed manually!');
+            confirmed = true;
+            break;
+          } else {
+            onStatusUpdate?.(`Status check ${attempts}/${maxAttempts}: Transaction not confirmed yet. Waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before checking again
+          }
+        } catch (statusError) {
+          console.warn(`Error checking transaction status (attempt ${attempts}/${maxAttempts}):`, statusError);
         }
-      } catch (statusError) {
-        console.warn('Error checking transaction status:', statusError);
-        onStatusUpdate?.('Could not verify transaction status. Please check explorer.');
+      }
+      
+      if (!confirmed) {
+        onStatusUpdate?.('Could not verify transaction status. Please check explorer later.');
       }
     }
     
     onStatusUpdate?.('Curve building transaction sent! TX ID: ' + txSignature);
+
+    // Additional verification to make sure we have a config address
+    if (!result.configAddress) {
+      console.warn('Missing configAddress in result, trying to fetch transaction result');
+      // Try to wait for a bit and see if we can get transaction details
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      try {
+        const txResult = await connection.getTransaction(txSignature, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0
+        });
+        
+        if (txResult) {
+          onStatusUpdate?.('Transaction found on-chain. Proceeding...');
+        } else {
+          onStatusUpdate?.('Transaction not yet found on-chain.');
+        }
+      } catch (txError) {
+        console.warn('Error fetching transaction:', txError);
+      }
+    }
 
     return {
       txId: txSignature,
@@ -299,15 +335,15 @@ export const createPool = async (
     
     let txSignature;
     try {
-      // Try to sign and send the transaction with confirmation
+      // Try to sign and send the transaction with confirmation - INCREASED TIMEOUT AND RETRIES
       txSignature = await wallet.sendBase64Transaction(
         result.transaction,
         connection,
         { 
           confirmTransaction: true, 
           statusCallback: onStatusUpdate,
-          maxRetries: 60, // Increase maximum retries
-          confirmationTimeout: 60000 // Increase timeout to 60 seconds
+          maxRetries: 120, // Doubled to 120 retries
+          confirmationTimeout: 180000 // Tripled to 3 minutes
         }
       );
     } catch (confirmError) {
@@ -322,23 +358,37 @@ export const createPool = async (
         { confirmTransaction: false, statusCallback: onStatusUpdate }
       );
       
-      // Wait a few seconds to allow transaction to propagate
+      // Wait longer on mainnet to allow transaction to propagate
       onStatusUpdate?.('Transaction sent. Waiting for network propagation...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Increased to 10 seconds wait
       
-      // Manually check if transaction succeeded
-      try {
-        const status = await connection.getSignatureStatus(txSignature);
-        console.log('Pool creation transaction status:', status);
-        
-        if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
-          onStatusUpdate?.('Transaction confirmed manually!');
-        } else {
-          onStatusUpdate?.('Transaction status unknown. Please check explorer.');
+      // Multiple attempts to check confirmation
+      let confirmed = false;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!confirmed && attempts < maxAttempts) {
+        attempts++;
+        try {
+          onStatusUpdate?.(`Checking transaction status (attempt ${attempts}/${maxAttempts})...`);
+          const status = await connection.getSignatureStatus(txSignature);
+          console.log('Pool creation transaction status:', status);
+          
+          if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
+            onStatusUpdate?.('Transaction confirmed manually!');
+            confirmed = true;
+            break;
+          } else {
+            onStatusUpdate?.(`Status check ${attempts}/${maxAttempts}: Transaction not confirmed yet. Waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before checking again
+          }
+        } catch (statusError) {
+          console.warn(`Error checking transaction status (attempt ${attempts}/${maxAttempts}):`, statusError);
         }
-      } catch (statusError) {
-        console.warn('Error checking transaction status:', statusError);
-        onStatusUpdate?.('Could not verify transaction status. Please check explorer.');
+      }
+      
+      if (!confirmed) {
+        onStatusUpdate?.('Transaction sent but could not verify confirmation. Please check explorer later.');
       }
     }
     
@@ -765,13 +815,67 @@ export const createPoolAndBuy = async (
     onStatusUpdate?.('Signing transaction...');
     
     // Sign and send the transaction
-    const txSignature = await wallet.sendBase64Transaction(
-      result.transaction,
-      connection,
-      { confirmTransaction: true, statusCallback: onStatusUpdate }
-    );
+    let txSignature;
+    try {
+      // Try to sign and send the transaction with increased timeout and retries
+      txSignature = await wallet.sendBase64Transaction(
+        result.transaction,
+        connection,
+        { 
+          confirmTransaction: true, 
+          statusCallback: onStatusUpdate,
+          maxRetries: 120, // Doubled to 120 retries
+          confirmationTimeout: 180000 // Tripled to 3 minutes
+        }
+      );
+    } catch (confirmError) {
+      console.warn('Error confirming pool and buy transaction:', confirmError);
+      
+      // If confirmation fails, try to send without waiting for confirmation
+      onStatusUpdate?.('Confirmation timed out. Sending without waiting for confirmation...');
+      
+      txSignature = await wallet.sendBase64Transaction(
+        result.transaction,
+        connection,
+        { confirmTransaction: false, statusCallback: onStatusUpdate }
+      );
+      
+      // Wait longer to allow transaction to propagate on mainnet
+      onStatusUpdate?.('Transaction sent. Waiting for network propagation...');
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+      
+      // Multiple attempts to check confirmation
+      let confirmed = false;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!confirmed && attempts < maxAttempts) {
+        attempts++;
+        try {
+          onStatusUpdate?.(`Checking transaction status (attempt ${attempts}/${maxAttempts})...`);
+          const status = await connection.getSignatureStatus(txSignature);
+          console.log('Pool and buy transaction status:', status);
+          
+          if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
+            onStatusUpdate?.('Transaction confirmed manually!');
+            confirmed = true;
+            break;
+          } else {
+            onStatusUpdate?.(`Status check ${attempts}/${maxAttempts}: Transaction not confirmed yet. Waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before checking again
+          }
+        } catch (statusError) {
+          console.warn(`Error checking transaction status (attempt ${attempts}/${maxAttempts}):`, statusError);
+        }
+      }
+      
+      if (!confirmed) {
+        onStatusUpdate?.('Transaction sent but could not verify confirmation. Please check explorer later.');
+        // Even without confirmation, we'll continue to registration since transaction might still succeed
+      }
+    }
     
-    onStatusUpdate?.('Pool created and tokens purchased successfully!');
+    onStatusUpdate?.('Pool creation and purchase transaction sent! TX ID: ' + txSignature);
 
     // Register the token in our database
     try {

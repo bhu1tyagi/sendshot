@@ -1,4 +1,4 @@
-import { Connection, Commitment, PublicKey } from '@solana/web3.js';
+import { Connection, Commitment, PublicKey, ConnectionConfig } from '@solana/web3.js';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -10,6 +10,10 @@ export const METEORA_DBC_PROGRAM_ID = new PublicKey('dbcij3LWUppWqq96dh6gJWwBifm
 // Global connection instance
 let globalConnection: Connection | null = null;
 
+// Define RPC endpoints
+const MAINNET_RPC = process.env.MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
+const DEVNET_RPC = process.env.DEVNET_RPC || 'https://api.devnet.solana.com';
+
 /**
  * Gets a Solana connection using the RPC_URL from environment variables
  * Falls back to Solana devnet if RPC_URL is not defined
@@ -17,23 +21,25 @@ let globalConnection: Connection | null = null;
  * @param commitment Optional commitment level, defaults to 'confirmed'
  * @returns A Solana Connection
  */
-export function getConnection(commitment: Commitment = 'confirmed'): Connection {
-  if (globalConnection) {
-    return globalConnection;
-  }
+export const getConnection = (commitment: Commitment = 'confirmed'): Connection => {
+  // Use process.env.NETWORK or default to mainnet
+  const network = process.env.NETWORK || 'mainnet';
+  const rpcUrl = network === 'devnet' ? DEVNET_RPC : MAINNET_RPC;
   
-  const rpcUrl = process.env.RPC_URL;
+  console.log(`Creating Solana connection to ${network} with commitment ${commitment}`);
   
-  if (!rpcUrl) {
-    console.warn('RPC_URL environment variable not set, falling back to public mainnet');
-    globalConnection = new Connection('https://api.mainnet.solana.com', commitment);
-    return globalConnection;
-  }
+  // Enhanced connection config with better timeout and retry settings
+  const connectionConfig: ConnectionConfig = {
+    commitment,
+    confirmTransactionInitialTimeout: 120000, // 2 minutes
+    disableRetryOnRateLimit: false,
+    httpHeaders: {
+      'Content-Type': 'application/json'
+    }
+  };
   
-  console.log(`Using RPC URL: ${maskRpcUrl(rpcUrl)}`);
-  globalConnection = new Connection(rpcUrl, commitment);
-  return globalConnection;
-}
+  return new Connection(rpcUrl, connectionConfig);
+};
 
 /**
  * Setup the connection when the server starts
