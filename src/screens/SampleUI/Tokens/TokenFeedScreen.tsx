@@ -141,12 +141,10 @@ const TokenFeedScreen = () => {
             console.log(`[TokenFeedScreen] New tokens received: ${trendingTokens.length - prevTokenCount.current}`);
             isLoadingMore.current = false;
 
-            // Force the FlatList to update
-            InteractionManager.runAfterInteractions(() => {
-                if (trendingListRef.current) {
-                    console.log('[TokenFeedScreen] Forcing FlatList update');
-                }
-            });
+            // Log if FlatList reference exists (previously was inside InteractionManager)
+            if (trendingListRef.current) {
+                console.log('[TokenFeedScreen] FlatList reference exists after receiving new tokens.');
+            }
         }
         prevTokenCount.current = trendingTokens.length;
     }, [trendingTokens.length]);
@@ -242,21 +240,21 @@ const TokenFeedScreen = () => {
         console.log('  - trendingTokensPage:', trendingTokensPage);
         console.log('  - isLoadingMore.current:', isLoadingMore.current);
         console.log('  - currentScrollY:', currentScrollY.current);
-        console.log('  - onEndReachedCalledDuringMomentum:', onEndReachedCalledDuringMomentum.current);
+        // console.log('  - onEndReachedCalledDuringMomentum:', onEndReachedCalledDuringMomentum.current); // Removed for simplification
 
-        // Prevent multiple calls during momentum scrolling
-        if (onEndReachedCalledDuringMomentum.current) {
-            console.log('[TokenFeedScreen] Skipped due to momentum flag');
+        // If already loading (either by Redux state or local ref), skip.
+        if (loadingMoreTrendingTokens || isLoadingMore.current) {
+            console.log('[TokenFeedScreen] Skipped: Already loading more tokens.');
             return;
         }
 
-        // Only load more if not currently loading, more tokens exist, and no active search
-        if (!loadingMoreTrendingTokens && !isLoadingMore.current && hasMoreTrendingTokens && searchQuery.trim() === '') {
+        // Only load more if more tokens exist and no active search
+        if (hasMoreTrendingTokens && searchQuery.trim() === '') {
             console.log(`[TokenFeedScreen] Loading more trending tokens, current page: ${trendingTokensPage}`);
 
             // Mark as loading to prevent multiple requests
             isLoadingMore.current = true;
-            onEndReachedCalledDuringMomentum.current = true;
+            // onEndReachedCalledDuringMomentum.current = true; // Removed for simplification
 
             // Capture current scroll position before loading more
             prevScrollPosition.current = currentScrollY.current;
@@ -272,7 +270,7 @@ const TokenFeedScreen = () => {
             // Dispatch fetch action
             dispatch(fetchTrendingTokens(trendingTokensPage + 1) as any);
         } else {
-            console.log('[TokenFeedScreen] Skipped loading more tokens');
+            console.log('[TokenFeedScreen] Skipped loading more tokens (conditions not met or search active).');
         }
     }, [dispatch, loadingMoreTrendingTokens, hasMoreTrendingTokens, searchQuery, trendingTokensPage]);
 
@@ -294,11 +292,10 @@ const TokenFeedScreen = () => {
         isScrolling.current = false;
         console.log(`[TokenFeedScreen] Scroll ended at position: ${currentScrollY.current}`);
 
-        // Reset momentum flag when scrolling ends
-        onEndReachedCalledDuringMomentum.current = false;
+        // onEndReachedCalledDuringMomentum.current = false; // Removed for simplification
     }, []);
 
-    const handleTokenPress = (token: TokenDisplay) => {
+    const handleTokenPress = useCallback((token: TokenDisplay) => {
         const sheetTokenData = {
             address: token.address,
             name: token.name,
@@ -310,14 +307,14 @@ const TokenFeedScreen = () => {
         };
         setSelectedToken(sheetTokenData as any);
         setIsTokenDetailsVisible(true);
-    };
+    }, []);
 
     // Handler for Buy button press
-    const handleBuyPress = (token: TokenDisplay) => {
+    const handleBuyPress = useCallback((token: TokenDisplay) => {
         console.log('Buy pressed for token:', token.symbol);
         setSelectedTokenForSwap(token);
         setIsSwapDrawerVisible(true);
-    };
+    }, []);
 
     // Handle successful swap
     const handleSwapComplete = () => {
@@ -386,7 +383,7 @@ const TokenFeedScreen = () => {
     }, []);
 
     // Memoized TrendingTokensTab
-    const TrendingTokensTabComponent = useCallback(() => (
+    const TrendingTokensTabComponent = (
         <TrendingTokensTab
             searchQuery={searchQuery}
             setSearchQuery={handleSearchQueryChange}
@@ -400,38 +397,29 @@ const TokenFeedScreen = () => {
             renderSkeletons={renderSkeletons}
             pulseAnim={pulseAnim}
         />
-    ), [
-        searchQuery,
-        handleSearchQueryChange,
-        renderFlatListItem,
-        keyExtractor,
-        getItemLayout,
-        handleLoadMore,
-        handleScroll,
-        handleScrollEnd,
-        renderFooter,
-        renderSkeletons,
-        pulseAnim
-    ]);
+    );
 
     // Memoized CommunityTokensTab
-    const CommunityTokensTabComponent = useCallback(() => (
+    const CommunityTokensTabComponent = (
         <CommunityTokensTab
             renderItem={renderFlatListItem}
             keyExtractor={keyExtractor}
             getItemLayout={getItemLayout}
             renderSkeletons={renderSkeletons}
         />
-    ), [renderFlatListItem, keyExtractor, getItemLayout, renderSkeletons]);
-
-    // Memoized renderScene
-    const renderScene = useMemo(
-        () => SceneMap({
-            trending: TrendingTokensTabComponent,
-            community: CommunityTokensTabComponent,
-        }),
-        [TrendingTokensTabComponent, CommunityTokensTabComponent]
     );
+
+    // Adjusted renderScene for TabView
+    const renderScene = ({ route }: { route: { key: string } }) => {
+        switch (route.key) {
+            case 'trending':
+                return TrendingTokensTabComponent;
+            case 'community':
+                return CommunityTokensTabComponent;
+            default:
+                return null;
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>

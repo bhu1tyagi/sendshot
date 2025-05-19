@@ -133,11 +133,4 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
 };
 
 // Custom equality check to minimize re-renders
-export default memo(TrendingTokensTab, (prevProps, nextProps) => {
-    // Only re-render when these critical props change
-    return (
-        prevProps.searchQuery === nextProps.searchQuery &&
-        prevProps.renderItem === nextProps.renderItem &&
-        prevProps.pulseAnim === nextProps.pulseAnim
-    );
-}); 
+export default memo(TrendingTokensTab); 
