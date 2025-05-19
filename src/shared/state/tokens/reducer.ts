@@ -474,18 +474,15 @@ const tokensSlice = createSlice({
         }
         
         if (uniqueNewTokens.length > 0) {
-          // IMPORTANT: Don't recreate the entire array - push to existing array for better reference stability
-          // This helps maintain scroll position when using FlatList
-          uniqueNewTokens.forEach(token => {
-            state.trendingTokens.push(token);
-          });
+          // Append tokens for pagination
+          state.trendingTokens = [...state.trendingTokens, ...uniqueNewTokens];
           
-          // Update filtered tokens efficiently
+          // If no filter active, also update filtered tokens directly
           if (state.filterOptions.query.trim() === '') {
             // Keep filtered and full lists in sync
             state.filteredTrendingTokens = state.trendingTokens;
           } else {
-            // If filtering is active, reapply the filter but maintain the existing structure
+            // If filtering is active, reapply the filter
             const query = state.filterOptions.query.toLowerCase();
             state.filteredTrendingTokens = state.trendingTokens.filter(token =>
               token.name.toLowerCase().includes(query) ||
