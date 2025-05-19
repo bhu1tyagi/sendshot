@@ -4,9 +4,15 @@ import tokensReducer, {
   createToken, 
   updateToken,
   fetchWalletTokens,
+  fetchTrendingTokens,
   TokenData,
   WalletTokenData,
-  updateTokenBalance
+  TrendingTokenData,
+  updateTokenBalance,
+  setTrendingTokensFilter,
+  resetTrendingTokensState,
+  TOKENS_PER_PAGE,
+  FilterOptions
 } from './reducer';
 
 export {
@@ -15,9 +21,15 @@ export {
   createToken,
   updateToken,
   fetchWalletTokens,
+  fetchTrendingTokens,
   TokenData,
   WalletTokenData,
-  updateTokenBalance
+  TrendingTokenData,
+  updateTokenBalance,
+  setTrendingTokensFilter,
+  resetTrendingTokensState,
+  TOKENS_PER_PAGE,
+  FilterOptions
 };
 
 export default tokensReducer; 

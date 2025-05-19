@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import {
     View,
     Text,
-    StyleSheet,
     FlatList,
     Image,
     TouchableOpacity,
@@ -11,8 +10,11 @@ import {
     StatusBar,
     Animated,
     Dimensions,
-    Platform,
     TextInput,
+    InteractionManager,
+    NativeSyntheticEvent,
+    NativeScrollEvent,
+    LogBox,
 } from 'react-native';
 import { TabView, SceneMap } from 'react-native-tab-view';
 import { useNavigation } from '@react-navigation/native';
@@ -20,16 +22,36 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '@/core/sharedUI/AppHeader';
 import COLORS from '@/assets/colors';
-import TYPOGRAPHY from '@/assets/typography';
 import { BIRDEYE_API_KEY } from '@env';
 import TokenDetailsSheet from '@/core/sharedUI/TrendingTokenDetails/TokenDetailsSheet';
 import SwapDrawer from '@/core/sharedUI/SwapDrawer/SwapDrawer';
 import { RootState } from '@/shared/state/store';
-import { fetchAllTokens } from '@/shared/state/tokens';
-import { TokenData } from '@/shared/state/tokens/reducer';
+import { 
+    fetchAllTokens, 
+    fetchTrendingTokens,
+    setTrendingTokensFilter,
+    resetTrendingTokensState,
+    TokenData,
+    TrendingTokenData,
+    TOKENS_PER_PAGE
+} from '@/shared/state/tokens';
 import Icons from '@/assets/svgs';
+import styles from './TokenFeedScreenStyles';
+import TokenSkeletonLoader from './TokenSkeletonLoader';
+
+// Disable specific warning about VirtualizedLists inside Lists
+LogBox.ignoreLogs([
+  'VirtualizedLists should never be nested inside plain ScrollViews',
+  'Sending `onEndReached` with no velocity'
+]);
 
 const { width } = Dimensions.get('window');
+
+// Number of skeleton loaders to display
+const SKELETON_COUNT = 5;
+
+// Calculate item height for getItemLayout (helps prevent jumping)
+const ITEM_HEIGHT = 88; // Approximate height of each token card
 
 // Async helper function to extract the actual image URL (copied from HoldingsScreen)
 async function extractActualImageUrl(metadataValue?: string): Promise<string | undefined> {
@@ -66,28 +88,10 @@ async function extractActualImageUrl(metadataValue?: string): Promise<string | u
     return undefined;
 }
 
-// Type definition for birdeye trending tokens
-interface BirdeyeToken {
-    address: string;
-    name: string;
-    symbol: string;
-    logoURI?: string;
-    price: number;
-    price24hChangePercent?: number;
-    rank?: number;
-}
+// Type definition for display tokens (combines community and trending tokens)
+type TokenDisplay = TokenData | TrendingTokenData;
 
-// Updated TokenDisplay to match TokenData more closely for consistency, plus local state image
-interface TokenDisplayFromDB extends TokenData {
-    // Inherits fields from TokenData, including metadataURI
-}
-interface TokenDisplayFromBirdeye extends BirdeyeToken {
-    id: string; // Birdeye uses address as id
-}
-
-type TokenDisplay = TokenDisplayFromDB | TokenDisplayFromBirdeye;
-
-// New TokenFeedListItem Component
+// TokenFeedListItem Component
 interface TokenFeedListItemProps {
     item: TokenDisplay;
     onPress: (token: TokenDisplay) => void;
@@ -145,14 +149,17 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
         return () => { isActive = false; };
     }, [item]);
 
+    // Get the price based on token type (community or trending)
     const price = 'price' in item ? (item.price ?? 0) : ('currentPrice' in item ? (item.currentPrice ?? item.initialPrice ?? 0) : 0);
+    
+    // Get the price change based on token type
     const priceChange24h = 'priceChange24h' in item ? (item.priceChange24h ?? 0) : ('price24hChangePercent' in item ? (item.price24hChangePercent ?? 0) : 0);
 
     const priceChangeColor = priceChange24h === 0 ? COLORS.greyMid : (priceChange24h >= 0 ? '#4CAF50' : COLORS.errorRed);
     const formattedPrice = price < 0.01 ? price.toFixed(8) : price.toFixed(2);
     const formattedPriceChange = `${priceChange24h >= 0 ? '+' : ''}${priceChange24h.toFixed(2)}%`;
 
-    // Get rank medal for trending tokens - now will be displayed to the left of token logo
+    // Get rank medal for trending tokens
     const getRankDisplay = () => {
         if (!('rank' in item) || !item.rank) return null;
 
@@ -185,7 +192,7 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
     };
 
     return (
-        <View style={styles.tokenCard}>
+        <View style={[styles.tokenCard, { height: ITEM_HEIGHT }]}>
             {/* Left section with rank and token logo */}
             <View style={styles.leftSection}>
                 {/* Rank medal - now outside and to the left of the logo */}
@@ -253,6 +260,8 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
 };
 
 const TokenFeedScreen = () => {
+    console.log('[TokenFeedScreen] Rendering component');
+    
     const navigation = useNavigation();
     const dispatch = useDispatch();
     const [index, setIndex] = useState(0);
@@ -261,14 +270,35 @@ const TokenFeedScreen = () => {
         { key: 'community', title: 'Community' },
     ]);
 
-    const { allTokens, loading: loadingAllTokens, error: errorAllTokens } = useSelector((state: RootState) => state.tokens);
+    // FlatList reference to manually control scroll
+    const trendingListRef = useRef<FlatList>(null);
+    const isLoadingMore = useRef(false);
+    const currentScrollY = useRef(0);
+    
+    // Add flag to track initial mount
+    const isInitialMount = useRef(true);
+    const renderCount = useRef(0);
 
-    const [trendingTokens, setTrendingTokens] = useState<TokenDisplayFromBirdeye[]>([]);
-    const [filteredTrendingTokens, setFilteredTrendingTokens] = useState<TokenDisplayFromBirdeye[]>([]);
-    const [loadingTrending, setLoadingTrending] = useState(true);
-    const [trendingError, setTrendingError] = useState<string | null>(null);
+    // Get tokens state from Redux
+    const { 
+        allTokens, 
+        loading: loadingAllTokens, 
+        error: errorAllTokens,
+        trendingTokens,
+        filteredTrendingTokens,
+        trendingTokensLoading,
+        trendingTokensError,
+        trendingTokensPage,
+        hasMoreTrendingTokens,
+        loadingMoreTrendingTokens,
+        filterOptions
+    } = useSelector((state: RootState) => state.tokens);
+
+    // Track component renders
+    renderCount.current += 1;
+    console.log(`[TokenFeedScreen] Render #${renderCount.current}, tab index: ${index}, tokens count: ${filteredTrendingTokens.length}`);
+
     const [searchQuery, setSearchQuery] = useState('');
-
     const [selectedToken, setSelectedToken] = useState<TokenDisplay | null>(null);
     const [isTokenDetailsVisible, setIsTokenDetailsVisible] = useState(false);
 
@@ -277,64 +307,168 @@ const TokenFeedScreen = () => {
     const [selectedTokenForSwap, setSelectedTokenForSwap] = useState<TokenDisplay | null>(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(0)).current;
 
+    // Keep a snapshot of the tokens count for scroll position reference
+    const prevTokenCount = useRef(0);
+    const prevScrollPosition = useRef(0);
+    const isScrolling = useRef(false);
+
+    // Add this at the component level, not inside the StableTrendingFlatList
+    const [scrollOffset, setScrollOffset] = useState(0);
+    
     useEffect(() => {
+        console.log('[TokenFeedScreen] Component mounted');
+        
+        // Fetch community tokens when component mounts
         dispatch(fetchAllTokens() as any);
-    }, [dispatch]);
+        
+        // Reset trending tokens state when component mounts
+        dispatch(resetTrendingTokensState());
 
-    useEffect(() => {
+        // Start animations
         Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-        fetchTrendingBirdeyeTokens();
+        startPulseAnimation();
+        
+        // Fetch first page of trending tokens
+        dispatch(fetchTrendingTokens(0) as any);
+        
+        // Cleanup function to reset trending tokens state when component unmounts
+        return () => {
+            console.log('[TokenFeedScreen] Component unmounting');
+            dispatch(resetTrendingTokensState());
+        };
+    }, [dispatch]);
+    
+    // Track changes in token count
+    useEffect(() => {
+        if (trendingTokens.length > prevTokenCount.current && prevTokenCount.current > 0) {
+            // Just received more tokens, mark loading as complete
+            console.log(`[TokenFeedScreen] New tokens received: ${trendingTokens.length - prevTokenCount.current}`);
+            isLoadingMore.current = false;
+            
+            // Force the FlatList to update
+            InteractionManager.runAfterInteractions(() => {
+                if (trendingListRef.current) {
+                    console.log('[TokenFeedScreen] Forcing FlatList update');
+                }
+            });
+        }
+        prevTokenCount.current = trendingTokens.length;
+    }, [trendingTokens.length]);
+    
+    // Log when loading status changes
+    useEffect(() => {
+        console.log(`[TokenFeedScreen] loadingMoreTrendingTokens: ${loadingMoreTrendingTokens}`);
+    }, [loadingMoreTrendingTokens]);
+    
+    useEffect(() => {
+        console.log(`[TokenFeedScreen] trendingTokensLoading: ${trendingTokensLoading}`);
+    }, [trendingTokensLoading]);
+    
+    // Start pulse animation for skeleton loaders
+    const startPulseAnimation = () => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 0,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+    };
+
+    // Update filter when search query changes
+    useEffect(() => {
+        dispatch(setTrendingTokensFilter({ query: searchQuery }));
+    }, [searchQuery, dispatch]);
+
+    // Handle tab change
+    useEffect(() => {
+        console.log(`[TokenFeedScreen] Tab changed to: ${index}`);
+        // If switching to trending tab and no trending tokens loaded, fetch them
+        if (index === 0 && trendingTokens.length === 0 && !trendingTokensLoading) {
+            dispatch(fetchTrendingTokens(0) as any);
+        }
+    }, [index, dispatch, trendingTokens.length, trendingTokensLoading]);
+
+    // Don't create a new array reference - use direct reference to Redux state
+    const trendingTokensForDisplay = filteredTrendingTokens;
+
+    // Get item layout for FlatList to prevent jumps
+    const getItemLayout = useCallback((data: any, index: number) => {
+        const layout = {
+        length: ITEM_HEIGHT,
+        offset: ITEM_HEIGHT * index,
+        index,
+        };
+        return layout;
     }, []);
 
-    // Filter trending tokens when search query changes
-    useEffect(() => {
-        if (searchQuery.trim() === '') {
-            setFilteredTrendingTokens(trendingTokens);
+    const handleLoadMore = useCallback(() => {
+        console.log('[TokenFeedScreen] onEndReached called');
+        console.log('  - loadingMoreTrendingTokens:', loadingMoreTrendingTokens);
+        console.log('  - hasMoreTrendingTokens:', hasMoreTrendingTokens);
+        console.log('  - searchQuery:', searchQuery);
+        console.log('  - trendingTokensPage:', trendingTokensPage);
+        console.log('  - isLoadingMore.current:', isLoadingMore.current);
+        console.log('  - currentScrollY:', currentScrollY.current);
+        
+        // Only load more if not currently loading, more tokens exist, and no active search
+        if (!loadingMoreTrendingTokens && !isLoadingMore.current && hasMoreTrendingTokens && searchQuery.trim() === '') {
+            console.log(`[TokenFeedScreen] Loading more trending tokens, current page: ${trendingTokensPage}`);
+            
+            // Mark as loading to prevent multiple requests
+            isLoadingMore.current = true;
+            
+            // Capture current scroll position before loading more
+            prevScrollPosition.current = currentScrollY.current;
+            
+            // Reset loading state after a delay if it somehow gets stuck
+            setTimeout(() => {
+                if (isLoadingMore.current) {
+                    console.log('[TokenFeedScreen] Timeout: Resetting isLoadingMore flag');
+                isLoadingMore.current = false;
+                }
+            }, 5000);
+            
+            // Dispatch fetch action
+            dispatch(fetchTrendingTokens(trendingTokensPage + 1) as any);
         } else {
-            const query = searchQuery.toLowerCase();
-            const filtered = trendingTokens.filter(token =>
-                token.name.toLowerCase().includes(query) ||
-                token.symbol.toLowerCase().includes(query) ||
-                token.address.toLowerCase().includes(query)
-            );
-            setFilteredTrendingTokens(filtered);
+            console.log('[TokenFeedScreen] Skipped loading more tokens');
         }
-    }, [searchQuery, trendingTokens]);
+    }, [dispatch, loadingMoreTrendingTokens, hasMoreTrendingTokens, searchQuery, trendingTokensPage]);
 
-    const fetchTrendingBirdeyeTokens = async () => {
-        setLoadingTrending(true);
-        setTrendingError(null);
-        try {
-            const response = await fetch(
-                'https://public-api.birdeye.so/defi/token_trending?sort_by=rank&sort_type=asc&offset=0&limit=20',
-                { headers: { 'accept': 'application/json', 'x-chain': 'solana', 'X-API-KEY': BIRDEYE_API_KEY } }
-            );
-            if (!response.ok) throw new Error('Failed to fetch trending tokens from Birdeye');
-            const data = await response.json();
-            if (data.success && data.data?.tokens) {
-                const formattedTokens: TokenDisplayFromBirdeye[] = data.data.tokens.map((token: BirdeyeToken) => ({
-                    ...token,
-                    id: token.address,
-                }));
-                setTrendingTokens(formattedTokens);
-                setFilteredTrendingTokens(formattedTokens);
-            } else {
-                setTrendingError('Invalid response from Birdeye API');
-            }
-        } catch (error: any) {
-            console.error('Error fetching trending tokens:', error);
-            setTrendingError(error.message || 'Error fetching trending tokens');
-        } finally {
-            setLoadingTrending(false);
+    // Update the handleScroll function to track scroll position more reliably
+    const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const y = event.nativeEvent.contentOffset.y;
+        currentScrollY.current = y;
+        setScrollOffset(y);
+        isScrolling.current = true;
+        
+        // If big jumps in scroll position, log them
+        if (Math.abs(y - prevScrollPosition.current) > 100) {
+            console.log(`[TokenFeedScreen] Large scroll position change: ${prevScrollPosition.current} -> ${y}`);
+            prevScrollPosition.current = y;
         }
-    };
+    }, []);
+
+    const handleScrollEnd = useCallback(() => {
+        isScrolling.current = false;
+        console.log(`[TokenFeedScreen] Scroll ended at position: ${currentScrollY.current}`);
+    }, []);
 
     const handleTokenPress = (token: TokenDisplay) => {
         const getPrice = () => {
             if ('price' in token && token.price !== undefined) return token.price;
             if ('currentPrice' in token && token.currentPrice !== undefined) return token.currentPrice;
-            if ('initialPrice' in token && token.initialPrice !== undefined) return token.initialPrice; // Ensure this check is valid for the type
+            if ('initialPrice' in token && token.initialPrice !== undefined) return token.initialPrice;
             return 0;
         };
 
@@ -367,7 +501,6 @@ const TokenFeedScreen = () => {
     // Handle successful swap
     const handleSwapComplete = () => {
         console.log('Swap completed successfully');
-        // You could refetch token data or user balances here
     };
 
     // Search handler
@@ -375,22 +508,46 @@ const TokenFeedScreen = () => {
         setSearchQuery(text);
     };
 
-    // renderFlatListItem now passes onBuyPress callback
-    const renderFlatListItem = ({ item }: { item: TokenDisplay }) => {
-        // Check if this is a community token (from allTokens) or trending token
-        const isCommunityToken = index === 1; // index 1 is the community tab
+    // Fix key extractor to not depend on index for more stable keys
+    const keyExtractor = useCallback((item: TokenDisplay) => {
+        // Ensure absolutely stable keys by using only address
+        return `token-${item.address}`;
+    }, []);
+
+    // Add a dedicated memo component for list items to prevent unnecessary re-renders
+    const MemoizedTokenFeedListItem = React.memo(TokenFeedListItem);
+
+    // Modify renderFlatListItem to use the memoized component without depending on tab index
+    const renderFlatListItem = useCallback(({ item }: { item: TokenDisplay, index: number }) => {
+        // Check if this is a community token based on data type, not tab index
+        const isCommunityToken = 'protocolType' in item;
         return (
-            <TokenFeedListItem
+            <MemoizedTokenFeedListItem
                 item={item}
                 onPress={handleTokenPress}
                 isCommunityToken={isCommunityToken}
                 onBuyPress={handleBuyPress}
             />
         );
-    };
+    }, [handleTokenPress, handleBuyPress]);
+    
+    // Render loading footer for infinite scroll
+    const renderFooter = useCallback(() => {
+        if (!loadingMoreTrendingTokens && !isLoadingMore.current) return null;
+        
+        console.log('[TokenFeedScreen] Rendering footer loader');
+        // Show a couple of skeleton loaders in the footer
+        return (
+            <View> 
+                {Array.from({ length: 2 }).map((_, idx) => (
+                    <TokenSkeletonLoader key={`footer-skeleton-${idx}`} pulseAnim={pulseAnim} />
+                ))}
+            </View>
+        );
+    }, [loadingMoreTrendingTokens, isLoadingMore.current, pulseAnim]);
 
-    // Search bar component
-    const SearchBar = () => (
+    // Search bar component - memoized to prevent re-creation
+    const SearchBar = useCallback(() => (
         <View style={styles.searchContainer}>
             <Ionicons name="search" size={18} color={COLORS.greyMid} style={styles.searchIcon} />
             <TextInput
@@ -409,84 +566,213 @@ const TokenFeedScreen = () => {
                 </TouchableOpacity>
             )}
         </View>
-    );
+    ), [searchQuery, handleSearch]);
+    
+    // Render skeleton loaders
+    const renderSkeletons = useCallback(() => {
+        return Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+            <TokenSkeletonLoader key={`skeleton-${index}`} pulseAnim={pulseAnim} />
+        ));
+    }, [pulseAnim]);
 
-    const TrendingTokensTab = () => (
-        <View style={styles.tabContent}>
-            {/* Search Bar for Trending tab */}
-            <SearchBar />
+    // Inside StableTrendingFlatList function, update the FlatList
+    const StableTrendingFlatList = useCallback(() => {
+        console.log('[TokenFeedScreen] Rendering StableTrendingFlatList');
+        
+        return (
+            <FlatList
+                ref={trendingListRef}
+                data={trendingTokensForDisplay}
+                renderItem={renderFlatListItem}
+                keyExtractor={keyExtractor}
+                getItemLayout={getItemLayout}
+                contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={renderFooter}
+                windowSize={21}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                removeClippedSubviews={false}
+                initialNumToRender={10}
+                disableVirtualization={false}
+                // Remove dependence on loadingMoreTrendingTokens which causes re-renders
+                extraData={scrollOffset}
+                onScroll={handleScroll}
+                onScrollEndDrag={handleScrollEnd}
+                onMomentumScrollEnd={handleScrollEnd}
+                // This is critical - it helps maintain scroll position when data changes
+                maintainVisibleContentPosition={{
+                    minIndexForVisible: 0,
+                    autoscrollToTopThreshold: null
+                }}
+                onScrollToIndexFailed={(info) => {
+                    console.log('[TokenFeedScreen] Failed to scroll to index:', info);
+                }}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>
+                            {searchQuery ? "No tokens match your search" : "No trending tokens available"}
+                        </Text>
+                        <Text style={styles.emptySubText}>
+                            {searchQuery ? "Try a different search term" : "Check back later"}
+                        </Text>
+                    </View>
+                }
+            />
+        );
+    }, [
+        trendingTokensForDisplay,
+        renderFlatListItem,
+        keyExtractor,
+        getItemLayout,
+        handleLoadMore,
+        renderFooter,
+        // Remove loadingMoreTrendingTokens from dependencies
+        // Add scrollOffset instead
+        scrollOffset,
+        handleScroll,
+        handleScrollEnd,
+        searchQuery
+    ]);
 
-            {loadingTrending ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color={COLORS.brandPrimary} />
-                    <Text style={styles.loaderText}>Loading trending tokens...</Text>
-                </View>
-            ) : trendingError ? (
-                <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{trendingError}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={fetchTrendingBirdeyeTokens}>
-                        <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : (
+    // Memoized TrendingTokensTab with useCallback to prevent recreation on every render
+    const TrendingTokensTab = useCallback(() => {
+        console.log('[TokenFeedScreen] Rendering TrendingTokensTab');
+        return (
+            <View style={styles.tabContent}>
+                {/* Search Bar for Trending tab */}
+                <SearchBar />
+
+                {trendingTokensLoading && trendingTokens.length === 0 ? (
+                    <View style={styles.listContainer}>
+                        {renderSkeletons()}
+                    </View>
+                ) : trendingTokensError ? (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{trendingTokensError}</Text>
+                        <TouchableOpacity 
+                            style={styles.retryButton} 
+                            onPress={() => {
+                                dispatch(fetchTrendingTokens(0) as any);
+                            }}
+                        >
+                            <Text style={styles.retryButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <StableTrendingFlatList />
+                )}
+            </View>
+        );
+    }, [
+        trendingTokensLoading, 
+        trendingTokens.length, 
+        trendingTokensError, 
+        dispatch,
+        SearchBar,
+        renderSkeletons,
+        StableTrendingFlatList
+    ]);
+
+    const StableCommunityFlatList = useCallback(() => {
+        console.log('[TokenFeedScreen] Rendering StableCommunityFlatList');
+        return (
                 <FlatList
-                    data={filteredTrendingTokens}
+                    data={allTokens as TokenData[]}
                     renderItem={renderFlatListItem}
-                    keyExtractor={item => item.id}
+                    keyExtractor={keyExtractor}
+                    getItemLayout={getItemLayout}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
+                    removeClippedSubviews={false}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>
-                                {searchQuery ? "No tokens match your search" : "No trending tokens available"}
-                            </Text>
-                            <Text style={styles.emptySubText}>
-                                {searchQuery ? "Try a different search term" : "Check back later"}
-                            </Text>
+                            <Text style={styles.emptyText}>No community tokens available</Text>
+                            <Text style={styles.emptySubText}>Check back later</Text>
                         </View>
                     }
                 />
+        );
+    }, [
+        allTokens,
+        renderFlatListItem,
+        keyExtractor,
+        getItemLayout
+    ]);
+
+    // Memoized CommunityTokensTab with useCallback to prevent recreation on every render
+    const CommunityTokensTab = useCallback(() => {
+        console.log('[TokenFeedScreen] Rendering CommunityTokensTab');
+        return (
+            <View style={styles.tabContent}>
+                {loadingAllTokens ? (
+                    <View style={styles.listContainer}>
+                        {renderSkeletons()} 
+                    </View>
+                ) : errorAllTokens ? (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{errorAllTokens}</Text>
+                    </View>
+                ) : (
+                    <StableCommunityFlatList />
             )}
         </View>
     );
+    }, [
+        loadingAllTokens, 
+        errorAllTokens, 
+        renderSkeletons,
+        StableCommunityFlatList
+    ]);
 
-    // Community Tokens Tab (previously UserCreatedTokensTab)
-    const CommunityTokensTab = () => (
-        <View style={styles.tabContent}>
-            {loadingAllTokens ? (
-                <View style={styles.loaderContainer}><ActivityIndicator size="large" color={COLORS.brandPrimary} /><Text style={styles.loaderText}>Loading community tokens...</Text></View>
-            ) : errorAllTokens ? (
-                <View style={styles.errorContainer}><Text style={styles.errorText}>{errorAllTokens}</Text></View>
-            ) : (
-                <FlatList
-                    data={allTokens as TokenDisplayFromDB[]} // Cast allTokens to ensure metadataURI is available for TokenFeedListItem
-                    renderItem={renderFlatListItem}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.listContainer}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>No community tokens available</Text><Text style={styles.emptySubText}>Check back later</Text></View>}
-                />
-            )}
-        </View>
-    );
-
-    const CustomTabBar = () => (
+    // Memoized CustomTabBar
+    const CustomTabBar = useCallback(() => (
         <View style={styles.tabBarContainer}>
-            <TouchableOpacity style={[styles.tab, index === 0 && styles.activeTab]} onPress={() => setIndex(0)}>
+            <TouchableOpacity 
+                style={[styles.tab, index === 0 && styles.activeTab]} 
+                onPress={() => setIndex(0)}
+            >
                 <Text style={[styles.tabText, index === 0 && styles.activeTabText]}>Trending</Text>
                 {index === 0 && <View style={styles.tabIndicator} />}
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.tab, index === 1 && styles.activeTab]} onPress={() => setIndex(1)}>
+            <TouchableOpacity 
+                style={[styles.tab, index === 1 && styles.activeTab]} 
+                onPress={() => setIndex(1)}
+            >
                 <Text style={[styles.tabText, index === 1 && styles.activeTabText]}>Community</Text>
                 {index === 1 && <View style={styles.tabIndicator} />}
             </TouchableOpacity>
         </View>
-    );
+    ), [index, setIndex]);
 
-    const renderScene = SceneMap({
-        trending: TrendingTokensTab,
-        community: CommunityTokensTab,
+    // Memoized renderScene to prevent TabView from getting new scene functions on every render
+    const renderScene = useMemo(
+        () => SceneMap({
+            trending: TrendingTokensTab,
+            community: CommunityTokensTab,
+        }),
+        [TrendingTokensTab, CommunityTokensTab]
+    );
+    
+    // Track when component fully renders
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            console.log('[TokenFeedScreen] Initial mount complete');
+        }
     });
+
+    // Clean up logs in development after 60s to prevent console overflow
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            console.log('[TokenFeedScreen] Clearing console logs');
+            console.clear();
+        }, 60000);
+        
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -526,272 +812,5 @@ const TokenFeedScreen = () => {
         </SafeAreaView>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    tabBarContainer: {
-        flexDirection: 'row',
-        height: 48,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderDarkColor,
-        backgroundColor: COLORS.background,
-    },
-    tab: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'relative',
-    },
-    activeTab: {
-        // backgroundColor: 'transparent', // Already default or handled by no specific style
-    },
-    tabText: {
-        fontSize: TYPOGRAPHY.size.md,
-        fontWeight: String(TYPOGRAPHY.medium) as any,
-        color: COLORS.greyDark,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    activeTabText: {
-        color: COLORS.white,
-        fontWeight: String(TYPOGRAPHY.semiBold) as any,
-    },
-    tabIndicator: {
-        position: 'absolute',
-        bottom: 0,
-        height: 3,
-        width: '35%',
-        backgroundColor: COLORS.brandPrimary,
-        borderTopLeftRadius: 3,
-        borderTopRightRadius: 3,
-    },
-    tabContent: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    listContainer: {
-        padding: 16,
-        paddingBottom: 100,
-    },
-    tokenCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.lighterBackground,
-        borderRadius: 20,
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    leftSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    rankContainer: {
-        width: 28,
-        height: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 8,
-    },
-    medalEmoji: {
-        fontSize: 18,
-    },
-    rankNumber: {
-        fontSize: TYPOGRAPHY.size.sm,
-        fontWeight: '600',
-        color: COLORS.accessoryDarkColor,
-    },
-    tokenLogoContainer: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: COLORS.darkerBackground,
-        overflow: 'hidden',
-    },
-    tokenLogo: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-    },
-    tokenLogoPlaceholder: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-        backgroundColor: COLORS.darkerBackground,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    tokenLogoText: {
-        fontSize: TYPOGRAPHY.size.lg,
-        fontWeight: '700',
-        color: COLORS.greyMid,
-    },
-    cardContent: {
-        flex: 1,
-        marginLeft: 12,
-        justifyContent: 'center',
-    },
-    tokenNameSection: {
-        justifyContent: 'center',
-    },
-    tokenSymbol: {
-        fontSize: TYPOGRAPHY.size.md,
-        fontWeight: '700',
-        color: COLORS.white,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    tokenName: {
-        fontSize: TYPOGRAPHY.size.xs,
-        color: COLORS.greyMid,
-        marginTop: 2,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    rightSection: {
-        alignItems: 'flex-end',
-    },
-    priceContainer: {
-        alignItems: 'flex-end',
-        marginBottom: 8,
-    },
-    tokenPrice: {
-        fontSize: TYPOGRAPHY.size.md,
-        fontWeight: '600',
-        color: COLORS.white,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    tokenPriceChange: {
-        fontSize: TYPOGRAPHY.size.xs,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.darkerBackground,
-        borderRadius: 12,
-        marginHorizontal: 16,
-        marginVertical: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderWidth: 1,
-        borderColor: COLORS.borderDarkColor,
-    },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInput: {
-        flex: 1,
-        color: COLORS.white,
-        fontSize: TYPOGRAPHY.size.sm,
-        padding: 0,
-    },
-    buyButton: {
-        backgroundColor: COLORS.brandPrimary,
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    buyButtonText: {
-        color: COLORS.white,
-        fontSize: TYPOGRAPHY.size.sm,
-        fontWeight: '600',
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    loaderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loader: {
-        marginBottom: 10,
-    },
-    loaderText: {
-        fontSize: TYPOGRAPHY.size.sm,
-        color: COLORS.greyMid,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-        marginTop: 10,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 30,
-        // paddingTop: 80, // Removed fixed padding, let flexbox handle centering
-    },
-    errorText: {
-        fontSize: TYPOGRAPHY.size.md,
-        fontWeight: String(TYPOGRAPHY.semiBold) as any,
-        color: COLORS.errorRed,
-        textAlign: 'center',
-        marginBottom: 16,
-    },
-    retryButton: {
-        backgroundColor: COLORS.brandPrimary,
-        paddingVertical: 10, // Increased padding
-        paddingHorizontal: 20, // Increased padding
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        color: COLORS.white,
-        fontSize: TYPOGRAPHY.size.sm,
-        fontWeight: String(TYPOGRAPHY.semiBold) as any,
-    },
-    emptyContainer: {
-        flex: 1, // Ensure it takes space to center content
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 80, // Keep some top padding
-        paddingHorizontal: 30,
-    },
-    emptyText: {
-        fontSize: TYPOGRAPHY.size.md,
-        fontWeight: String(TYPOGRAPHY.semiBold) as any,
-        color: COLORS.white,
-        textAlign: 'center',
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    emptySubText: {
-        marginTop: 8,
-        fontSize: TYPOGRAPHY.size.sm,
-        color: COLORS.greyMid,
-        textAlign: 'center',
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-    },
-    protocolContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.07)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginTop: 6,
-        alignSelf: 'flex-start',
-    },
-    protocolIconContainer: {
-        width: 18,
-        height: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 6,
-    },
-    protocolLogo: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-    },
-    protocolText: {
-        fontSize: TYPOGRAPHY.size.xs,
-        color: COLORS.white,
-        letterSpacing: TYPOGRAPHY.letterSpacing,
-        fontWeight: '500',
-    },
-});
 
 export default TokenFeedScreen;

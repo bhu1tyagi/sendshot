@@ -1,0 +1,338 @@
+import { StyleSheet, Dimensions } from 'react-native';
+import COLORS from '@/assets/colors';
+import TYPOGRAPHY from '@/assets/typography';
+
+const { width } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
+    tabBarContainer: {
+        flexDirection: 'row',
+        height: 48,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.borderDarkColor,
+        backgroundColor: COLORS.background,
+    },
+    tab: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+    },
+    activeTab: {},
+    tabText: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: String(TYPOGRAPHY.medium) as any,
+        color: COLORS.greyDark,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    activeTabText: {
+        color: COLORS.white,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        height: 3,
+        width: '35%',
+        backgroundColor: COLORS.brandPrimary,
+        borderTopLeftRadius: 3,
+        borderTopRightRadius: 3,
+    },
+    tabContent: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
+    listContainer: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    tokenCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.lighterBackground,
+        borderRadius: 20,
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    leftSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    rankContainer: {
+        width: 28,
+        height: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    medalEmoji: {
+        fontSize: 18,
+    },
+    rankNumber: {
+        fontSize: TYPOGRAPHY.size.sm,
+        fontWeight: '600',
+        color: COLORS.accessoryDarkColor,
+    },
+    tokenLogoContainer: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: COLORS.darkerBackground,
+        overflow: 'hidden',
+    },
+    tokenLogo: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+    },
+    tokenLogoPlaceholder: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: COLORS.darkerBackground,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    tokenLogoText: {
+        fontSize: TYPOGRAPHY.size.lg,
+        fontWeight: '700',
+        color: COLORS.greyMid,
+    },
+    cardContent: {
+        flex: 1,
+        marginLeft: 12,
+        justifyContent: 'center',
+    },
+    tokenNameSection: {
+        justifyContent: 'center',
+    },
+    tokenSymbol: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: '700',
+        color: COLORS.white,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    tokenName: {
+        fontSize: TYPOGRAPHY.size.xs,
+        color: COLORS.greyMid,
+        marginTop: 2,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    rightSection: {
+        alignItems: 'flex-end',
+    },
+    priceContainer: {
+        alignItems: 'flex-end',
+        marginBottom: 8,
+    },
+    tokenPrice: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: '600',
+        color: COLORS.white,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    tokenPriceChange: {
+        fontSize: TYPOGRAPHY.size.xs,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.darkerBackground,
+        borderRadius: 12,
+        marginHorizontal: 16,
+        marginVertical: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderWidth: 1,
+        borderColor: COLORS.borderDarkColor,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        padding: 0,
+    },
+    buyButton: {
+        backgroundColor: COLORS.brandPrimary,
+        paddingVertical: 8,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    buyButtonText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontWeight: '600',
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loader: {
+        marginBottom: 10,
+    },
+    loaderText: {
+        fontSize: TYPOGRAPHY.size.sm,
+        color: COLORS.greyMid,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+        marginTop: 10,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 30,
+    },
+    errorText: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+        color: COLORS.errorRed,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    retryButton: {
+        backgroundColor: COLORS.brandPrimary,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: COLORS.white,
+        fontSize: TYPOGRAPHY.size.sm,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+    },
+    emptyContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: 80,
+        paddingHorizontal: 30,
+    },
+    emptyText: {
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: String(TYPOGRAPHY.semiBold) as any,
+        color: COLORS.white,
+        textAlign: 'center',
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    emptySubText: {
+        marginTop: 8,
+        fontSize: TYPOGRAPHY.size.sm,
+        color: COLORS.greyMid,
+        textAlign: 'center',
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+    },
+    protocolContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.07)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginTop: 6,
+        alignSelf: 'flex-start',
+    },
+    protocolIconContainer: {
+        width: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 6,
+    },
+    protocolLogo: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+    },
+    protocolText: {
+        fontSize: TYPOGRAPHY.size.xs,
+        color: COLORS.white,
+        letterSpacing: TYPOGRAPHY.letterSpacing,
+        fontWeight: '500',
+    },
+    // Skeleton styles
+    skeletonContainer: {
+        backgroundColor: COLORS.lighterBackground,
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        flexDirection: 'row',
+    },
+    skeletonLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    skeletonRank: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: COLORS.darkerBackground,
+        marginRight: 8,
+    },
+    skeletonLogo: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: COLORS.darkerBackground,
+    },
+    skeletonContent: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    skeletonSymbol: {
+        height: 18,
+        width: 80,
+        borderRadius: 4,
+        backgroundColor: COLORS.darkerBackground,
+        marginBottom: 8,
+    },
+    skeletonName: {
+        height: 14,
+        width: 120,
+        borderRadius: 4,
+        backgroundColor: COLORS.darkerBackground,
+    },
+    skeletonRight: {
+        alignItems: 'flex-end',
+    },
+    skeletonPrice: {
+        height: 18,
+        width: 60,
+        borderRadius: 4,
+        backgroundColor: COLORS.darkerBackground,
+        marginBottom: 8,
+    },
+    skeletonChange: {
+        height: 14,
+        width: 50,
+        borderRadius: 4,
+        backgroundColor: COLORS.darkerBackground,
+        marginBottom: 8,
+    },
+    skeletonButton: {
+        height: 32,
+        width: 70,
+        borderRadius: 16,
+        backgroundColor: COLORS.darkerBackground,
+    },
+});
+
+export default styles; 
