@@ -50,6 +50,7 @@ export interface StableFlatListProps {
     renderFooter?: () => JSX.Element | null;
     loadingMoreTrendingTokens?: boolean;
     searchQuery?: string;
+    keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
 }
 
 // Props for Tab Components

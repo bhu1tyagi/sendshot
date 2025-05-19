@@ -19,8 +19,8 @@ import COLORS from '@/assets/colors';
 import TokenDetailsSheet from '@/core/sharedUI/TrendingTokenDetails/TokenDetailsSheet';
 import SwapDrawer from '@/core/sharedUI/SwapDrawer/SwapDrawer';
 import { RootState } from '@/shared/state/store';
-import { 
-    fetchAllTokens, 
+import {
+    fetchAllTokens,
     fetchTrendingTokens,
     setTrendingTokensFilter,
     resetTrendingTokensState
@@ -42,8 +42,8 @@ import { getTokenPrice, getTokenPriceChange } from './utils/tokenHelpers';
 
 // Disable specific warning about VirtualizedLists inside Lists
 LogBox.ignoreLogs([
-  'VirtualizedLists should never be nested inside plain ScrollViews',
-  'Sending `onEndReached` with no velocity'
+    'VirtualizedLists should never be nested inside plain ScrollViews',
+    'Sending `onEndReached` with no velocity'
 ]);
 
 const { width } = Dimensions.get('window');
@@ -56,7 +56,7 @@ const ITEM_HEIGHT = 88; // Approximate height of each token card
 
 const TokenFeedScreen = () => {
     console.log('[TokenFeedScreen] Rendering component');
-    
+
     const navigation = useNavigation();
     const dispatch = useDispatch();
     const [index, setIndex] = useState(0);
@@ -69,7 +69,8 @@ const TokenFeedScreen = () => {
     const trendingListRef = useRef<FlatList>(null);
     const isLoadingMore = useRef(false);
     const currentScrollY = useRef(0);
-    
+    const onEndReachedCalledDuringMomentum = useRef(false);
+
     // Add flag to track initial mount
     const isInitialMount = useRef(true);
     const renderCount = useRef(0);
@@ -79,6 +80,13 @@ const TokenFeedScreen = () => {
     console.log(`[TokenFeedScreen] Render #${renderCount.current}, tab index: ${index}`);
 
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Memoize the search query setter to maintain referential equality
+    const handleSearchQueryChange = useCallback((query: string) => {
+        // This function will maintain the same reference between renders
+        setSearchQuery(query);
+    }, []);
+
     const [selectedToken, setSelectedToken] = useState<TokenDisplay | null>(null);
     const [isTokenDetailsVisible, setIsTokenDetailsVisible] = useState(false);
 
@@ -93,8 +101,9 @@ const TokenFeedScreen = () => {
     const prevTokenCount = useRef(0);
     const prevScrollPosition = useRef(0);
     const isScrolling = useRef(false);
+    const prevSearchQuery = useRef('');
 
-    const { 
+    const {
         trendingTokens,
         trendingTokensLoading,
         trendingTokensPage,
@@ -104,34 +113,34 @@ const TokenFeedScreen = () => {
 
     useEffect(() => {
         console.log('[TokenFeedScreen] Component mounted');
-        
+
         // Fetch community tokens when component mounts
         dispatch(fetchAllTokens() as any);
-        
+
         // Reset trending tokens state when component mounts
         dispatch(resetTrendingTokensState());
 
         // Start animations
         Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
         startPulseAnimation();
-        
+
         // Fetch first page of trending tokens
         dispatch(fetchTrendingTokens(0) as any);
-        
+
         // Cleanup function to reset trending tokens state when component unmounts
         return () => {
             console.log('[TokenFeedScreen] Component unmounting');
             dispatch(resetTrendingTokensState());
         };
     }, [dispatch]);
-    
+
     // Track changes in token count
     useEffect(() => {
         if (trendingTokens.length > prevTokenCount.current && prevTokenCount.current > 0) {
             // Just received more tokens, mark loading as complete
             console.log(`[TokenFeedScreen] New tokens received: ${trendingTokens.length - prevTokenCount.current}`);
             isLoadingMore.current = false;
-            
+
             // Force the FlatList to update
             InteractionManager.runAfterInteractions(() => {
                 if (trendingListRef.current) {
@@ -141,16 +150,16 @@ const TokenFeedScreen = () => {
         }
         prevTokenCount.current = trendingTokens.length;
     }, [trendingTokens.length]);
-    
+
     // Log when loading status changes
     useEffect(() => {
         console.log(`[TokenFeedScreen] loadingMoreTrendingTokens: ${loadingMoreTrendingTokens}`);
     }, [loadingMoreTrendingTokens]);
-    
+
     useEffect(() => {
         console.log(`[TokenFeedScreen] trendingTokensLoading: ${trendingTokensLoading}`);
     }, [trendingTokensLoading]);
-    
+
     // Start pulse animation for skeleton loaders
     const startPulseAnimation = () => {
         Animated.loop(
@@ -169,9 +178,40 @@ const TokenFeedScreen = () => {
         ).start();
     };
 
-    // Update filter when search query changes
+    // Throttle search filter updates - add throttle time
+    const lastFilterUpdateTime = useRef(0);
+
+    // Update filter when search query changes - with throttling
     useEffect(() => {
-        dispatch(setTrendingTokensFilter({ query: searchQuery }));
+        // Skip immediate initial render
+        if (isInitialMount.current) return;
+
+        // Get current time
+        const now = Date.now();
+
+        // Set a delay between filter dispatches (300ms minimum)
+        if (now - lastFilterUpdateTime.current < 300) {
+            console.log('[TokenFeedScreen] Throttling filter update');
+            const throttleUpdateTimeout = setTimeout(() => {
+                if (searchQuery.trim() !== prevSearchQuery.current.trim()) {
+                    console.log('[TokenFeedScreen] Dispatching delayed filter update:', searchQuery);
+                    dispatch(setTrendingTokensFilter({ query: searchQuery }));
+                    prevSearchQuery.current = searchQuery;
+                    lastFilterUpdateTime.current = Date.now();
+                }
+            }, 300);
+
+            return () => clearTimeout(throttleUpdateTimeout);
+        }
+
+        // Update immediately if outside throttle window
+        console.log('[TokenFeedScreen] Updating filter with query:', searchQuery);
+        if (searchQuery.trim() !== prevSearchQuery.current.trim()) {
+            dispatch(setTrendingTokensFilter({ query: searchQuery }));
+            prevSearchQuery.current = searchQuery;
+            lastFilterUpdateTime.current = now;
+        }
+
     }, [searchQuery, dispatch]);
 
     // Handle tab change
@@ -186,13 +226,14 @@ const TokenFeedScreen = () => {
     // Get item layout for FlatList to prevent jumps
     const getItemLayout = useCallback((data: any, index: number) => {
         const layout = {
-        length: ITEM_HEIGHT,
-        offset: ITEM_HEIGHT * index,
-        index,
+            length: ITEM_HEIGHT,
+            offset: ITEM_HEIGHT * index,
+            index,
         };
         return layout;
     }, []);
 
+    // Fix the handleLoadMore function to handle momentum properly
     const handleLoadMore = useCallback(() => {
         console.log('[TokenFeedScreen] onEndReached called');
         console.log('  - loadingMoreTrendingTokens:', loadingMoreTrendingTokens);
@@ -201,25 +242,33 @@ const TokenFeedScreen = () => {
         console.log('  - trendingTokensPage:', trendingTokensPage);
         console.log('  - isLoadingMore.current:', isLoadingMore.current);
         console.log('  - currentScrollY:', currentScrollY.current);
-        
+        console.log('  - onEndReachedCalledDuringMomentum:', onEndReachedCalledDuringMomentum.current);
+
+        // Prevent multiple calls during momentum scrolling
+        if (onEndReachedCalledDuringMomentum.current) {
+            console.log('[TokenFeedScreen] Skipped due to momentum flag');
+            return;
+        }
+
         // Only load more if not currently loading, more tokens exist, and no active search
         if (!loadingMoreTrendingTokens && !isLoadingMore.current && hasMoreTrendingTokens && searchQuery.trim() === '') {
             console.log(`[TokenFeedScreen] Loading more trending tokens, current page: ${trendingTokensPage}`);
-            
+
             // Mark as loading to prevent multiple requests
             isLoadingMore.current = true;
-            
+            onEndReachedCalledDuringMomentum.current = true;
+
             // Capture current scroll position before loading more
             prevScrollPosition.current = currentScrollY.current;
-            
+
             // Reset loading state after a delay if it somehow gets stuck
             setTimeout(() => {
                 if (isLoadingMore.current) {
                     console.log('[TokenFeedScreen] Timeout: Resetting isLoadingMore flag');
-                isLoadingMore.current = false;
+                    isLoadingMore.current = false;
                 }
             }, 5000);
-            
+
             // Dispatch fetch action
             dispatch(fetchTrendingTokens(trendingTokensPage + 1) as any);
         } else {
@@ -227,27 +276,26 @@ const TokenFeedScreen = () => {
         }
     }, [dispatch, loadingMoreTrendingTokens, hasMoreTrendingTokens, searchQuery, trendingTokensPage]);
 
-    // Track scroll position
+    // Reset momentum flags on scroll events
     const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const y = event.nativeEvent.contentOffset.y;
         currentScrollY.current = y;
         isScrolling.current = true;
-        
+
         // If big jumps in scroll position, log them
         if (Math.abs(y - prevScrollPosition.current) > 100) {
             console.log(`[TokenFeedScreen] Large scroll position change: ${prevScrollPosition.current} -> ${y}`);
             prevScrollPosition.current = y;
         }
-        
-        // Clear loading flag on scroll events
-        if (isLoadingMore.current) {
-            console.log('[TokenFeedScreen] Scrolling - keeping isLoadingMore true during scroll');
-        }
     }, []);
 
+    // Reset momentum flag when scrolling ends
     const handleScrollEnd = useCallback(() => {
         isScrolling.current = false;
         console.log(`[TokenFeedScreen] Scroll ended at position: ${currentScrollY.current}`);
+
+        // Reset momentum flag when scrolling ends
+        onEndReachedCalledDuringMomentum.current = false;
     }, []);
 
     const handleTokenPress = (token: TokenDisplay) => {
@@ -296,22 +344,22 @@ const TokenFeedScreen = () => {
             />
         );
     }, [handleTokenPress, handleBuyPress]);
-    
+
     // Render loading footer for infinite scroll
     const renderFooter = useCallback(() => {
         if (!loadingMoreTrendingTokens && !isLoadingMore.current) return null;
-        
+
         console.log('[TokenFeedScreen] Rendering footer loader');
         // Show a couple of skeleton loaders in the footer
         return (
-            <View> 
+            <View>
                 {Array.from({ length: 2 }).map((_, idx) => (
                     <TokenSkeletonLoader key={`footer-skeleton-${idx}`} pulseAnim={pulseAnim} />
                 ))}
             </View>
         );
     }, [loadingMoreTrendingTokens, isLoadingMore.current, pulseAnim]);
-    
+
     // Render skeleton loaders
     const renderSkeletons = useCallback(() => {
         return Array.from({ length: SKELETON_COUNT }).map((_, index) => (
@@ -333,7 +381,7 @@ const TokenFeedScreen = () => {
             console.log('[TokenFeedScreen] Clearing console logs');
             console.clear();
         }, 60000);
-        
+
         return () => clearTimeout(timer);
     }, []);
 
@@ -341,7 +389,7 @@ const TokenFeedScreen = () => {
     const TrendingTokensTabComponent = useCallback(() => (
         <TrendingTokensTab
             searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+            setSearchQuery={handleSearchQueryChange}
             renderItem={renderFlatListItem}
             keyExtractor={keyExtractor}
             getItemLayout={getItemLayout}
@@ -353,12 +401,12 @@ const TokenFeedScreen = () => {
             pulseAnim={pulseAnim}
         />
     ), [
-        searchQuery, 
-        setSearchQuery, 
-        renderFlatListItem, 
-        keyExtractor, 
-        getItemLayout, 
-        handleLoadMore, 
+        searchQuery,
+        handleSearchQueryChange,
+        renderFlatListItem,
+        keyExtractor,
+        getItemLayout,
+        handleLoadMore,
         handleScroll,
         handleScrollEnd,
         renderFooter,

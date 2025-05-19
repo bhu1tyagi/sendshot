@@ -367,20 +367,35 @@ const tokensSlice = createSlice({
       }
     },
     
-    // Set filter options for trending tokens
+    // Set filter options for trending tokens - optimized to prevent excessive rerenders
     setTrendingTokensFilter(state, action: PayloadAction<FilterOptions>) {
+      const newQuery = action.payload.query;
+      const currentQuery = state.filterOptions.query;
+      
+      // Skip processing if the query is identical (case-insensitive)
+      if (newQuery.toLowerCase().trim() === currentQuery.toLowerCase().trim()) {
+        return;
+      }
+      
+      // Update the filter options
       state.filterOptions = action.payload;
       
       // Apply filtering to trending tokens
-      if (action.payload.query.trim() === '') {
+      if (newQuery.trim() === '') {
+        // If query is empty, no filtering needed
         state.filteredTrendingTokens = state.trendingTokens;
+        console.log(`[TokensReducer] Filter cleared, showing all ${state.trendingTokens.length} tokens`);
       } else {
-        const query = action.payload.query.toLowerCase();
-        state.filteredTrendingTokens = state.trendingTokens.filter(token =>
+        // Apply filter
+        const query = newQuery.toLowerCase();
+        const filteredTokens = state.trendingTokens.filter(token =>
           token.name.toLowerCase().includes(query) ||
           token.symbol.toLowerCase().includes(query) ||
           token.address.toLowerCase().includes(query)
         );
+        
+        state.filteredTrendingTokens = filteredTokens;
+        console.log(`[TokensReducer] Filter applied: "${query}", matched ${filteredTokens.length} of ${state.trendingTokens.length} tokens`);
       }
     },
     

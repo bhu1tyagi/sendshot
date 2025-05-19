@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/shared/state/store';
@@ -21,9 +21,32 @@ interface TrendingTokensTabProps extends TabComponentProps {
     pulseAnim: any;
 }
 
+// Memoize SearchBar to prevent unnecessary re-renders
+const MemoizedSearchBar = memo(SearchBar);
+
+// Memoize the loading skeleton component
+const LoadingSkeletons = memo(({ renderSkeletons }: { renderSkeletons: () => JSX.Element[] }) => (
+    <View style={styles.listContainer}>
+        {renderSkeletons()}
+    </View>
+));
+
+// Memoize the error component
+const ErrorComponent = memo(({ error, onRetry }: { error: string, onRetry: () => void }) => (
+    <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+            style={styles.retryButton}
+            onPress={onRetry}
+        >
+            <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+    </View>
+));
+
 const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
     searchQuery = '',
-    setSearchQuery = () => {},
+    setSearchQuery = () => { },
     renderItem,
     keyExtractor,
     getItemLayout,
@@ -36,7 +59,12 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
 }) => {
     console.log('[TrendingTokensTab] Rendering component');
     const dispatch = useDispatch();
-    
+
+    // Memoize the search query setter to maintain referential equality
+    const handleSearchQueryChange = useCallback((query: string) => {
+        setSearchQuery(query);
+    }, [setSearchQuery]);
+
     const {
         trendingTokens,
         filteredTrendingTokens,
@@ -45,28 +73,18 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
         loadingMoreTrendingTokens
     } = useSelector((state: RootState) => state.tokens);
 
-    return (
-        <View style={styles.tabContent}>
-            {/* Search Bar for Trending tab */}
-            <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+    const handleRetry = useCallback(() => {
+        dispatch(fetchTrendingTokens(0) as any);
+    }, [dispatch]);
 
-            {trendingTokensLoading && trendingTokens.length === 0 ? (
-                <View style={styles.listContainer}>
-                    {renderSkeletons()}
-                </View>
-            ) : trendingTokensError ? (
-                <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{trendingTokensError}</Text>
-                    <TouchableOpacity 
-                        style={styles.retryButton} 
-                        onPress={() => {
-                            dispatch(fetchTrendingTokens(0) as any);
-                        }}
-                    >
-                        <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : (
+    // Memoize the content based on the current state
+    const content = useMemo(() => {
+        if (trendingTokensLoading && trendingTokens.length === 0) {
+            return <LoadingSkeletons renderSkeletons={renderSkeletons} />;
+        } else if (trendingTokensError) {
+            return <ErrorComponent error={trendingTokensError} onRetry={handleRetry} />;
+        } else {
+            return (
                 <StableTrendingFlatList
                     data={filteredTrendingTokens}
                     renderItem={renderItem}
@@ -78,10 +96,48 @@ const TrendingTokensTab: React.FC<TrendingTokensTabProps> = ({
                     renderFooter={renderFooter}
                     loadingMoreTrendingTokens={loadingMoreTrendingTokens}
                     searchQuery={searchQuery}
+                    keyboardShouldPersistTaps="always"
                 />
-            )}
+            );
+        }
+    }, [
+        trendingTokensLoading,
+        trendingTokens.length,
+        trendingTokensError,
+        filteredTrendingTokens,
+        renderItem,
+        keyExtractor,
+        getItemLayout,
+        handleLoadMore,
+        handleScroll,
+        handleScrollEnd,
+        renderFooter,
+        loadingMoreTrendingTokens,
+        searchQuery,
+        renderSkeletons,
+        handleRetry
+    ]);
+
+    return (
+        <View style={styles.tabContent}>
+            {/* Search Bar for Trending tab - use memoized version */}
+            <MemoizedSearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={handleSearchQueryChange}
+            />
+
+            {/* Memoized content */}
+            {content}
         </View>
     );
 };
 
-export default React.memo(TrendingTokensTab); 
+// Custom equality check to minimize re-renders
+export default memo(TrendingTokensTab, (prevProps, nextProps) => {
+    // Only re-render when these critical props change
+    return (
+        prevProps.searchQuery === nextProps.searchQuery &&
+        prevProps.renderItem === nextProps.renderItem &&
+        prevProps.pulseAnim === nextProps.pulseAnim
+    );
+}); 
