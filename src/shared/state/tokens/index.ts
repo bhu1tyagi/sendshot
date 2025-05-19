@@ -3,7 +3,10 @@ import tokensReducer, {
   fetchAllTokens, 
   createToken, 
   updateToken,
-  TokenData
+  fetchWalletTokens,
+  TokenData,
+  WalletTokenData,
+  updateTokenBalance
 } from './reducer';
 
 export {
@@ -11,7 +14,10 @@ export {
   fetchAllTokens,
   createToken,
   updateToken,
-  TokenData
+  fetchWalletTokens,
+  TokenData,
+  WalletTokenData,
+  updateTokenBalance
 };
 
 export default tokensReducer; 

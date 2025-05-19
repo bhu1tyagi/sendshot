@@ -212,13 +212,13 @@ export default function MainTabs() {
                 focused={focused}
                 size={size * 1.2}
                 icon={
-                  Icons.SwapNavIcon as React.ComponentType<{
+                  Icons.FeedIcon as React.ComponentType<{
                     width: number;
                     height: number;
                   }>
                 }
                 iconSelected={
-                  Icons.SwapNavIconSelected as React.ComponentType<{
+                  Icons.FeedIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
                   }>
@@ -237,16 +237,16 @@ export default function MainTabs() {
             tabBarIcon: ({ focused, size }) => (
               <AnimatedTabIcon
                 focused={focused}
-                size={size * 1.2}
+                size={size * 1.4}
                 icon={
-                  Icons.HoldingsIcon as React.ComponentType<{
+                  Icons.ClockHistoryIcon as React.ComponentType<{
                     width: number;
                     height: number;
                     color?: string;
                   }>
                 }
                 iconSelected={
-                  Icons.HoldingsIconSelected as React.ComponentType<{
+                  Icons.ClockHistoryIconSelected as React.ComponentType<{
                     width: number;
                     height: number;
                     color?: string;

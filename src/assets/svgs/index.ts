@@ -73,6 +73,8 @@ import RadyuimIcom from './Rayduim_icon.svg'
 import TokenMillIcon from './Tokenmill_icon.svg'
 import AddFundsIcon from './add-funds-icon.svg';
 import PlusCircleIcon from './plus-circle-icon.svg';
+import ClockHistoryIcon from './clock-history-icon.svg';
+import ClockHistoryIconSelected from './clock-history-icon-selected.svg';
 
 // Login elements right
 import RightRectangle from './login-elements-right/rectangle-right.svg';
@@ -83,8 +85,8 @@ import RightZigzag from './login-elements-right/zigzag-right.svg';
 import RightEllipse from './login-elements-right/ellipse-right.svg';
 
 // Add imports for our new Holdings icons
-import HoldingsIcon from '../svg/HoldingsIcon';
-import HoldingsIconSelected from '../svg/HoldingsIconSelected';
+// import HoldingsIcon from '../svg/HoldingsIcon';
+// import HoldingsIconSelected from '../svg/HoldingsIconSelected';
 // Import new custom icons
 import SendFundsIcon from '../svg/SendFundsIcon';
 import LogoutIcon from '../svg/LogoutIcon';
@@ -165,6 +167,8 @@ export default {
   TokenMillIcon,
   AddFundsIcon,
   PlusCircleIcon,
+  ClockHistoryIcon,
+  ClockHistoryIconSelected,
   
   // Login elements right
   RightRectangle,
@@ -173,8 +177,7 @@ export default {
   RightGrid,
   RightZigzag,
   RightEllipse,
-  HoldingsIcon,
-  HoldingsIconSelected,
+
   // Custom icons
   SendFundsIcon,
   LogoutIcon
