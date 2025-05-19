@@ -85,6 +85,9 @@ import RightEllipse from './login-elements-right/ellipse-right.svg';
 // Add imports for our new Holdings icons
 import HoldingsIcon from '../svg/HoldingsIcon';
 import HoldingsIconSelected from '../svg/HoldingsIconSelected';
+// Import new custom icons
+import SendFundsIcon from '../svg/SendFundsIcon';
+import LogoutIcon from '../svg/LogoutIcon';
 
 export default {
   SolanaDot,
@@ -171,5 +174,8 @@ export default {
   RightZigzag,
   RightEllipse,
   HoldingsIcon,
-  HoldingsIconSelected
+  HoldingsIconSelected,
+  // Custom icons
+  SendFundsIcon,
+  LogoutIcon
 };

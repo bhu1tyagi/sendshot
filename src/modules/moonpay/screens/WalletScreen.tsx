@@ -28,6 +28,7 @@ import AppHeader from '@/core/sharedUI/AppHeader';
 import { styles } from './WalletScreen.style';
 import { RootStackParamList } from '@/shared/navigation/RootNavigator';
 import { StackNavigationProp } from '@react-navigation/stack';
+import TransferBalanceButton from '@/modules/walletProviders/components/transferBalanceButton';
 
 const SOL_DECIMAL = 1000000000; // 1 SOL = 10^9 lamports
 
@@ -114,6 +115,7 @@ function WalletScreen({
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [copied, setCopied] = useState(false);
   const { logout } = useAuth();
+  const [sendModalVisible, setSendModalVisible] = useState(false);
 
   // Use the wallet hook to get the address
   const { address } = useWallet();
@@ -574,6 +576,24 @@ function WalletScreen({
             </View>
           </TouchableOpacity>
 
+          {/* Send Funds Button */}
+          <TouchableOpacity
+            style={[styles.actionButton, { marginTop: 12 }]}
+            onPress={() => setSendModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: COLORS.brandGreen }]}>
+              <Icons.SendFundsIcon width={24} height={24} color={COLORS.white} />
+            </View>
+            <View style={styles.actionTextContainer}>
+              <Text style={styles.actionText}>Send Funds</Text>
+              <Text style={styles.actionSubtext}>Transfer SOL to any wallet</Text>
+            </View>
+            <View style={styles.actionBadge}>
+              <Text style={styles.actionBadgeText}>Solana</Text>
+            </View>
+          </TouchableOpacity>
+
           {/* Logout Button */}
           <TouchableOpacity
             style={[styles.actionButton, { marginTop: 12 }]}
@@ -581,7 +601,7 @@ function WalletScreen({
             activeOpacity={0.7}
           >
             <View style={[styles.actionIconContainer, { backgroundColor: COLORS.errorRed }]}>
-              <Icons.walletIcon width={24} height={24} color={COLORS.white} />
+              <Icons.LogoutIcon width={24} height={24} color={COLORS.white} />
             </View>
             <View style={styles.actionTextContainer}>
               <Text style={styles.actionText}>Logout</Text>
@@ -631,6 +651,15 @@ function WalletScreen({
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Transfer Balance Modal */}
+      <TransferBalanceButton
+        showCustomWalletInput={true}
+        showOnlyTransferButton={true}
+        buttonLabel="Send Funds"
+        externalModalVisible={sendModalVisible}
+        externalSetModalVisible={setSendModalVisible}
+      />
     </View>
   );
 }
