@@ -5,6 +5,7 @@ import COLORS from '@/assets/colors';
 import styles from '../TokenFeedScreenStyles';
 import { TokenFeedListItemProps } from '../utils/types';
 import { extractActualImageUrl, formatTokenPrice, formatPriceChange, getPriceChangeColor } from '../utils/tokenHelpers';
+import { IPFSAwareImage } from '@/shared/utils/IPFSImage';
 
 const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
     item,
@@ -21,13 +22,13 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
 
         switch (item.protocolType) {
             case 'pumpfun':
-                return <Image source={require('@/assets/images/Pumpfun_logo.png')} style={styles.protocolLogo} />;
+                return <IPFSAwareImage source={require('@/assets/images/Pumpfun_logo.png')} style={styles.protocolLogo} />;
             case 'raydium':
                 return <Icons.RadyuimIcom width={18} height={18} color="#F5C05E" />;
             case 'tokenmill':
                 return <Icons.TokenMillIcon width={18} height={18} color={COLORS.white} />;
             case 'meteora':
-                return <Image source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
+                return <IPFSAwareImage source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
             default:
                 return null;
         }
@@ -58,7 +59,7 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
 
     // Get the price based on token type (community or trending)
     const price = 'price' in item ? (item.price ?? 0) : ('currentPrice' in item ? (item.currentPrice ?? item.initialPrice ?? 0) : 0);
-    
+
     // Get the price change based on token type
     const priceChange24h = 'priceChange24h' in item ? (item.priceChange24h ?? 0) : ('price24hChangePercent' in item ? (item.price24hChangePercent ?? 0) : 0);
 
@@ -110,7 +111,7 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
                     {isLoadingImage ? (
                         <ActivityIndicator size="small" color={COLORS.brandPrimary} />
                     ) : resolvedImageUrl ? (
-                        <Image
+                        <IPFSAwareImage
                             source={{ uri: resolvedImageUrl }}
                             style={styles.tokenLogo}
                             defaultSource={require('@/assets/images/SENDlogo.png')}

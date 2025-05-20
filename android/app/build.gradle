@@ -86,9 +86,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.sendai.solanaappkit'
+    namespace 'com.sendai.sendshot'
     defaultConfig {
-        applicationId 'com.sendai.solanaappkit'
+        applicationId 'com.sendai.sendshot'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

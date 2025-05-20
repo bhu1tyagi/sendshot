@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions, Platform } from 'react-native';
 import COLORS from '@/assets/colors';
 import TYPOGRAPHY from '@/assets/typography';
 
@@ -30,11 +30,22 @@ const styles = StyleSheet.create({
         height: '100%',
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: 16,
-        shadowColor: COLORS.brandPrimary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        elevation: 5,
+        ...Platform.select({
+            ios: {
+                shadowColor: COLORS.brandPrimary,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.15,
+                shadowRadius: 10,
+                elevation: 5,
+            },
+            android: {
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                elevation: 0,
+            },
+        }),
     },
     tabButton: {
         flex: 1,
@@ -78,12 +89,23 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginBottom: 12,
         borderRadius: 16,
-        elevation: 4,
+        ...Platform.select({
+            ios: {
+                elevation: 4,
+                shadowColor: COLORS.brandPrimary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 0,
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+            },
+        }),
         overflow: 'hidden',
-        shadowColor: COLORS.brandPrimary,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
     },
     cardGradient: {
         flexDirection: 'column',
@@ -103,11 +125,22 @@ const styles = StyleSheet.create({
         position: 'relative',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
-        shadowColor: COLORS.brandPrimary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 3,
+        ...Platform.select({
+            ios: {
+                shadowColor: COLORS.brandPrimary,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 3,
+            },
+            android: {
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                elevation: 0,
+            },
+        }),
     },
     glowEffect: {
         position: 'absolute',
@@ -117,11 +150,22 @@ const styles = StyleSheet.create({
         bottom: -5,
         borderRadius: 30,
         backgroundColor: 'transparent',
-        shadowColor: COLORS.brandPrimary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 10,
+        ...Platform.select({
+            ios: {
+                shadowColor: COLORS.brandPrimary,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.3,
+                shadowRadius: 10,
+                elevation: 10,
+            },
+            android: {
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                elevation: 0,
+            },
+        }),
     },
     tokenLogo: {
         width: 42,
@@ -277,11 +321,24 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderRadius: 16,
         overflow: 'hidden',
-        elevation: 4,
-        shadowColor: COLORS.brandPrimary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
+        ...Platform.select({
+            ios: {
+                shadowColor: COLORS.brandPrimary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 12,
+                elevation: 4,
+            },
+            android: {
+                elevation: 0,
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                borderWidth: 1,
+                borderColor: 'rgba(80,120,180,0.12)', // subtle border for separation
+            },
+        }),
     },
     statsGradient: {
         flexDirection: 'row',
@@ -378,11 +435,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        elevation: 2,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
         flexDirection: 'row',
+        ...Platform.select({
+            ios: {
+                elevation: 2,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 3,
+            },
+            android: {
+                elevation: 0,
+                shadowColor: 'transparent',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                borderWidth: 1,
+                borderColor: 'rgba(80,120,180,0.12)', // subtle border for separation
+            },
+        }),
     },
     buyButton: {
         backgroundColor: 'rgba(50, 212, 222, 0.2)',

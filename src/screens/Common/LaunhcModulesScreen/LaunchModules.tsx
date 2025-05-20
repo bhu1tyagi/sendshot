@@ -189,7 +189,7 @@ export default function ModuleScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoggedIn, address } = useSelector((state: RootState) => state.auth);
   const auth = useAuth();
-  
+
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Fetch user tokens when logged in
@@ -206,15 +206,15 @@ export default function ModuleScreen() {
         "You need to be logged in to launch a token.",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Login Now", 
+          {
+            text: "Login Now",
             onPress: () => handleLogin()
           }
         ]
       );
       return;
     }
-    
+
     if (module.navigateTo) {
       // Store the protocol type in navigation params
       // Cast as any to fix navigation types
@@ -297,7 +297,7 @@ export default function ModuleScreen() {
     <SafeAreaView
       style={[
         styles.container,
-        Platform.OS === 'android' && androidStyles.safeArea,
+        Platform.OS === 'android' && [androidStyles.safeArea, { paddingTop: 46 }],
       ]}>
       {/* Replace custom header with reusable AppHeader */}
       <AppHeader
@@ -325,7 +325,7 @@ export default function ModuleScreen() {
             </TouchableOpacity>
           </>
         )}
-        
+
         {modules.map(module => renderLaunchCard(module))}
       </ScrollView>
     </SafeAreaView>

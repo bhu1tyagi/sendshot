@@ -12,6 +12,7 @@ import {
     Animated,
     Dimensions,
     ScrollView,
+    Platform,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +26,7 @@ import TokenDetailsSheet from '@/core/sharedUI/TrendingTokenDetails/TokenDetails
 import SwapDrawer from '@/core/sharedUI/SwapDrawer/SwapDrawer';
 import Icons from '@/assets/svgs';
 import styles from './HoldingsScreen.styles';
+import { IPFSAwareImage } from '@/shared/utils/IPFSImage';
 
 // Get TAB_WIDTH from Dimensions
 const { width } = Dimensions.get('window');
@@ -32,55 +34,161 @@ const TAB_WIDTH = (width - 32) / 2;
 
 // New asynchronous helper function to extract the actual image URL
 async function extractActualImageUrl(metadataValue?: string): Promise<string | undefined> {
-    if (!metadataValue) return undefined;
-
-    let contentToParse = metadataValue;
-
-    // If metadataValue is a URL, fetch its content.
-    if (metadataValue.startsWith('http')) {
-        try {
-            console.log(`Fetching metadata from URL: ${metadataValue}`);
-            const response = await fetch(metadataValue);
-            if (!response.ok) {
-                console.error(`Failed to fetch metadata from URL ${metadataValue}: ${response.statusText}`);
-                contentToParse = metadataValue;
-            } else {
-                contentToParse = await response.text();
-                console.log(`Fetched content to parse: ${contentToParse.substring(0, 100)}...`);
-            }
-        } catch (fetchError) {
-            console.error(`Network error fetching metadata from URL ${metadataValue}: ${fetchError}`);
-            contentToParse = metadataValue;
-        }
+    const forAndroid = Platform.OS === 'android';
+    if (!metadataValue) {
+        if (forAndroid) console.log('[Android Img Debug H] metadataValue is undefined or empty');
+        return undefined;
     }
 
-    // Try to parse contentToParse as JSON
-    try {
-        const jsonData = JSON.parse(contentToParse);
-        if (jsonData && typeof jsonData.image === 'string' && jsonData.image.startsWith('http')) {
-            console.log('Extracted image from parsed JSON:', jsonData.image);
-            return jsonData.image;
-        } else {
-            console.warn('Parsed JSON, but "image" field is missing, not a string, or not a URL:', jsonData);
-        }
-    } catch (jsonError) {
-        console.warn(`Failed to parse content as JSON. Content: "${contentToParse.substring(0, 100)}..." Error: ${jsonError}`);
+    if (forAndroid) console.log(`[Android Img Debug H] Initial metadataValue: ${metadataValue}`);
 
-        // Fallback: Try regex on contentToParse
-        const imageMatch = contentToParse.match(/"image"\s*:\s*"([^"]+)"/);
-        if (imageMatch && imageMatch[1] && imageMatch[1].startsWith('http')) {
-            console.log("Found image via regex fallback on content:", imageMatch[1]);
-            return imageMatch[1];
-        }
+    // Pattern to check for common image file extensions or IPFS direct links
+    const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
+    // Matches /ipfs/Qm..., ipfs://Qm..., or just Qm...
+    const ipfsHashPattern = /(?:\/ipfs\/|ipfs:\/\/)?(Qm[1-9A-HJ-NP-Za-km-z]{44})/i;
+    const ipfsHashMatch = metadataValue.match(ipfsHashPattern);
+
+    // 1. If it's an IPFS hash (Qm...), construct URL with a reliable gateway.
+    // This also handles ipfs://Qm... and /ipfs/Qm... by extracting the hash.
+    if (ipfsHashMatch && ipfsHashMatch[1]) {
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const directIpfsImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug H] Detected IPFS hash ${hash}, formed direct URL: ${directIpfsImageUrl}`);
+        // Now check if this direct URL is what we should try to fetch metadata from, OR if it's the image itself.
+        // For now, let's assume if we got a hash, it might be part of a metadata URL or a direct image.
+        // We'll try to fetch if it's a full URL, otherwise, this becomes a candidate if it's just a hash.
+        // If metadataValue itself IS the directIpfsImageUrl (or similar from another gateway but same hash)
+        // OR if metadataValue was JUST ipfs://HASH or /ipfs/HASH or HASH.
+        // We should check if it's a JSON metadata or direct image.
+        // Let's try fetching it as metadata first if it's a full URL.
     }
 
-    // Final fallback: check if original metadataValue looks like an image URL
-    if (metadataValue.startsWith('http') && /\.(jpeg|jpg|gif|png|webp)$/i.test(metadataValue)) {
-        console.log('Using original metadataValue as direct image URL:', metadataValue);
+
+    // 2. Check if metadataValue itself is a direct HTTP/S image URL
+    if (metadataValue.startsWith('http') && imagePattern.test(metadataValue)) {
+        if (forAndroid) console.log(`[Android Img Debug H] Using metadataValue as direct image URL (http, known extension): ${metadataValue}`);
         return metadataValue;
     }
 
-    console.log('Could not extract a valid image URL from:', metadataValue);
+    // 3. If metadataValue is an HTTP/S URL (could be JSON metadata or an image not caught by extension)
+    let contentToParse = metadataValue;
+    let fetchedSuccessfully = false;
+    let isLikelyDirectImageFromFetch = false;
+
+    // MODIFIED PART FOR ANDROID + IPFS.IO METADATA
+    let urlToFetchMetadata = metadataValue;
+    if (forAndroid && metadataValue.startsWith('https://ipfs.io/ipfs/')) {
+        const potentialPinataMetadataUrl = metadataValue.replace('https://ipfs.io/ipfs/', 'https://gateway.pinata.cloud/ipfs/');
+        if (forAndroid) console.log(`[Android Img Debug H] Original metadata URL is ipfs.io. Prioritizing Pinata for metadata fetch: ${potentialPinataMetadataUrl}`);
+        urlToFetchMetadata = potentialPinataMetadataUrl;
+    }
+    // END MODIFIED PART
+
+    if (urlToFetchMetadata.startsWith('http')) {
+        if (forAndroid) console.log(`[Android Img Debug H] metadataValue is HTTP URL, attempting to fetch: ${urlToFetchMetadata}`);
+        try {
+            const response = await fetch(urlToFetchMetadata, { headers: { 'Accept': 'application/json, text/plain, image/*' } });
+            if (!response.ok) {
+                if (forAndroid) console.error(`[Android Img Debug H] Failed to fetch from URL ${urlToFetchMetadata}: ${response.status} ${response.statusText}`);
+                // If Pinata metadata fetch failed, and original was ipfs.io, try original ipfs.io as a last resort for metadata
+                if (forAndroid && urlToFetchMetadata.includes('gateway.pinata.cloud') && metadataValue.startsWith('https://ipfs.io/ipfs/')) {
+                    if (forAndroid) console.log(`[Android Img Debug H] Pinata metadata fetch failed. Retrying with original ipfs.io URL: ${metadataValue}`);
+                    const fallbackResponse = await fetch(metadataValue, { headers: { 'Accept': 'application/json, text/plain, image/*' } });
+                    if (!fallbackResponse.ok) {
+                        if (forAndroid) console.error(`[Android Img Debug H] Fallback fetch from original ipfs.io URL ${metadataValue} also failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+                    } else {
+                        const contentType = fallbackResponse.headers.get('content-type');
+                        if (contentType && contentType.startsWith('image/')) {
+                            if (forAndroid) console.log(`[Android Img Debug H] Fallback Fetched content is an image (Content-Type: ${contentType}). Using URL directly: ${metadataValue}`);
+                            return metadataValue;
+                        }
+                        contentToParse = await fallbackResponse.text();
+                        if (forAndroid) console.log(`[Android Img Debug H] Fallback Fetched text content (first 100 chars): ${contentToParse.substring(0, 100)}...`);
+                        fetchedSuccessfully = true;
+                    }
+                }
+            } else {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.startsWith('image/')) {
+                    if (forAndroid) console.log(`[Android Img Debug H] Fetched content is an image (Content-Type: ${contentType}). Using URL directly: ${urlToFetchMetadata}`);
+                    isLikelyDirectImageFromFetch = true; // The URL itself is the image.
+                    // No need to parse, return the original URL.
+                    return urlToFetchMetadata;
+                }
+                // If not an image, try to get text for JSON parsing
+                contentToParse = await response.text();
+                if (forAndroid) console.log(`[Android Img Debug H] Fetched text content (first 100 chars): ${contentToParse.substring(0, 100)}...`);
+                fetchedSuccessfully = true;
+            }
+        } catch (fetchError: any) {
+            if (forAndroid) console.error(`[Android Img Debug H] Network error fetching from URL ${urlToFetchMetadata}: ${fetchError.message || fetchError}`);
+        }
+    } else if (ipfsHashMatch && ipfsHashMatch[1] && !urlToFetchMetadata.startsWith('http')) {
+        // This case handles raw "Qm..." or "ipfs://Qm..."
+        // Construct a URL with a primary gateway and assume it's a direct image link.
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const constructedImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug H] metadataValue was raw IPFS hash/URI '${urlToFetchMetadata}', constructed direct image URL: ${constructedImageUrl}`);
+        return constructedImageUrl;
+    }
+
+    let tryParseJson = false;
+    if (fetchedSuccessfully && urlToFetchMetadata.startsWith('http')) {
+        tryParseJson = (typeof contentToParse === 'string' && contentToParse.trim().startsWith('{') && contentToParse.trim().endsWith('}'));
+        if (forAndroid && !tryParseJson) {
+            console.log(`[Android Img Debug H] Fetched HTTP content, but it doesn't look like a simple JSON object. Content (first 100): ${contentToParse.substring(0, 100)}`);
+        }
+    } else if (!urlToFetchMetadata.startsWith('http') && typeof contentToParse === 'string') {
+        tryParseJson = (contentToParse.trim().startsWith('{') && contentToParse.trim().endsWith('}'));
+        if (forAndroid && !tryParseJson) {
+            console.log(`[Android Img Debug H] Non-HTTP metadataValue, and it doesn't look like a simple JSON object. Content (first 100): ${contentToParse.substring(0, 100)}`);
+        }
+    }
+
+    if (tryParseJson) {
+        if (forAndroid) {
+            console.log(`[Android Img Debug H] PRE-PARSE CHECK. Content being sent to JSON.parse (first 200 chars): ${contentToParse.substring(0, 200)}...`);
+        }
+        try {
+            const jsonData = JSON.parse(contentToParse);
+            if (jsonData && typeof jsonData.image === 'string' && jsonData.image.startsWith('http')) {
+                if (forAndroid) console.log(`[Android Img Debug H] Extracted image from parsed JSON: ${jsonData.image}`);
+                return jsonData.image;
+            } else {
+                if (forAndroid) console.warn('[Android Img Debug H] Parsed JSON, but "image" field is missing, not a string, or not a valid http(s) URL:', jsonData.image || 'image field missing/invalid');
+            }
+        } catch (jsonError: any) {
+            if (forAndroid) console.warn(`[Android Img Debug H] JSON.parse FAILED. Error: ${jsonError.message || jsonError}. Content that failed (first 200 chars): "${contentToParse.substring(0, 200)}..."`);
+        }
+    } else if (fetchedSuccessfully && urlToFetchMetadata.startsWith('http')) {
+        // This case means we fetched HTTP content, it wasn't a direct image, and it didn't look like parseable JSON.
+        if (forAndroid) console.log(`[Android Img Debug H] HTTP content fetched for ${urlToFetchMetadata} was not a direct image and not identified as JSON for parsing.`);
+    }
+
+    // 5. Fallback: If original metadataValue was a string containing JSON-like "image" field (but not perfectly formatted JSON)
+    // This is less reliable and should ideally be handled by proper JSON.
+    if (typeof urlToFetchMetadata === 'string') {
+        const imageRegexMatch = urlToFetchMetadata.match(/"image"\s*:\s*"([^"]+)"/);
+        if (imageRegexMatch && imageRegexMatch[1] && imageRegexMatch[1].startsWith('http')) {
+            if (forAndroid) console.log(`[Android Img Debug H] Found image via regex fallback on original metadataValue string: ${imageRegexMatch[1]}`);
+            return imageRegexMatch[1];
+        }
+    }
+
+    // 6. If we identified an IPFS hash earlier (ipfsHashMatch) and haven't returned an image yet,
+    // it implies direct linking or JSON parsing from it failed.
+    // Try constructing a direct image URL with the hash.
+    if (ipfsHashMatch && ipfsHashMatch[1]) {
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const fallbackImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug H] Fallback: Using IPFS hash ${hash} to form direct URL: ${fallbackImageUrl}`);
+        return fallbackImageUrl;
+    }
+
+    if (forAndroid) console.log(`[Android Img Debug H] Could not extract a valid image URL from: ${urlToFetchMetadata}`);
     return undefined;
 }
 
@@ -166,7 +274,7 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
             case 'tokenmill':
                 return <Icons.TokenMillIcon width={14} height={14} />;
             case 'meteora':
-                return <Image source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
+                return <IPFSAwareImage source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
             default:
                 return null;
         }
@@ -219,10 +327,10 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
     };
 
     // Calculate price and change values based on item type
-    const changeValue = 'priceChange24h' in item && item.priceChange24h !== undefined ? 
+    const changeValue = 'priceChange24h' in item && item.priceChange24h !== undefined ?
         item.priceChange24h : 0;
     const changeColor = changeValue >= 0 ? COLORS.brandGreen : COLORS.errorRed;
-    
+
     // Calculate token price
     let displayPrice = 0;
     if ('currentPrice' in item) {
@@ -231,11 +339,11 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
         // Calculate price per token from usdValue/balance
         displayPrice = (item.usdValue || 0) / item.balance;
     }
-    
+
     // Check if the item is a wallet token with balance
     const isWalletToken = isHolding && 'balance' in item;
     const balance = isWalletToken && item.balance !== undefined ? item.balance : 0;
-    
+
     // Get USD value directly
     let value = isWalletToken && 'usdValue' in item ? (item.usdValue || 0) : 0;
 
@@ -278,7 +386,7 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
                                 {isLoadingImage ? (
                                     <ActivityIndicator size="small" color={COLORS.brandPrimary} />
                                 ) : (
-                                    <Image
+                                    <IPFSAwareImage
                                         source={{ uri: resolvedImageUrl }}
                                         style={styles.tokenLogo}
                                         defaultSource={require('@/assets/images/SENDlogo.png')}
@@ -292,7 +400,7 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
                             <View style={styles.detailsContainer}>
                                 <Text style={styles.tokenSymbol}>{item.symbol}</Text>
                                 <Text style={styles.tokenName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
-                                
+
                                 {/* Protocol badge */}
                                 {'protocolType' in item && item.protocolType && (
                                     <View style={styles.protocolContainer}>
@@ -313,7 +421,7 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
                             <Text style={[styles.tokenChange, { color: changeColor }]}>
                                 {changeValue >= 0 ? '↑ ' : '↓ '}{Math.abs(changeValue).toFixed(1)}%
                             </Text>
-                            
+
                             {/* Show balance for "Your Holdings" */}
                             {isWalletToken && (
                                 <View style={styles.balanceContainer}>
@@ -331,19 +439,19 @@ const TokenListItem: React.FC<TokenListItemProps> = ({ item, onPress, onTrade, i
                     {/* Action buttons row */}
                     {onTrade && (
                         <View style={styles.actionRow}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.actionButton, styles.buyButton]}
                                 onPress={() => onTrade(item, true)}
                             >
                                 <Ionicons name="arrow-up-outline" size={12} color={COLORS.brandPrimary} style={{ marginRight: 4 }} />
-                                <Text style={[styles.actionButtonText, {color: COLORS.brandPrimary}]}>Buy</Text>
+                                <Text style={[styles.actionButtonText, { color: COLORS.brandPrimary }]}>Buy</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.actionButton, styles.sellButton]}
                                 onPress={() => onTrade(item, false)}
                             >
                                 <Ionicons name="arrow-down-outline" size={12} color={COLORS.brandPink} style={{ marginRight: 4 }} />
-                                <Text style={[styles.actionButtonText, {color: COLORS.brandPink}]}>Sell</Text>
+                                <Text style={[styles.actionButtonText, { color: COLORS.brandPink }]}>Sell</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -368,12 +476,12 @@ const HoldingsStats: React.FC<HoldingsStatsProps> = ({ tokens }) => {
     const todayChange = useMemo(() => {
         const totalWeight = tokens.reduce((sum, token) => sum + (token.usdValue || 0), 0);
         if (totalWeight === 0) return 0;
-        
+
         const weightedChange = tokens.reduce((sum, token) => {
             const weight = (token.usdValue || 0) / totalWeight;
             return sum + (token.priceChange24h || 0) * weight;
         }, 0);
-        
+
         return weightedChange;
     }, [tokens]);
 
@@ -397,12 +505,12 @@ const HoldingsStats: React.FC<HoldingsStatsProps> = ({ tokens }) => {
                 <View style={styles.statSection}>
                     <Text style={styles.statLabel}>Total Value</Text>
                     <Text style={styles.statValue}>{formatTotalValue(totalValue)}</Text>
-                    <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 4}}>
-                        <Ionicons 
-                            name={todayChange >= 0 ? "trending-up" : "trending-down"} 
-                            size={12} 
-                            color={todayChange >= 0 ? COLORS.brandGreen : COLORS.brandPink} 
-                            style={{marginRight: 4}} 
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                        <Ionicons
+                            name={todayChange >= 0 ? "trending-up" : "trending-down"}
+                            size={12}
+                            color={todayChange >= 0 ? COLORS.brandGreen : COLORS.brandPink}
+                            style={{ marginRight: 4 }}
                         />
                         <Text style={[styles.statChange, { color: todayChange >= 0 ? COLORS.brandGreen : COLORS.brandPink }]}>
                             {todayChange >= 0 ? '+' : ''}{todayChange.toFixed(1)}% today
@@ -429,11 +537,11 @@ const HoldingsStats: React.FC<HoldingsStatsProps> = ({ tokens }) => {
 const HoldingsScreen = () => {
     const dispatch = useDispatch();
     const { address } = useSelector((state: RootState) => state.auth);
-    
+
     // Launch History state
     const { userTokens, loading, error } = useSelector((state: RootState) => state.tokens);
     const userTokensList: TokenData[] = address && userTokens[address] ? userTokens[address] : [];
-    
+
     // Wallet Holdings state
     const { walletTokens, walletTokensLoading, walletTokensError } = useSelector((state: RootState) => state.tokens);
     const walletTokensList: WalletTokenData[] = address && walletTokens[address] ? walletTokens[address] : [];
@@ -446,7 +554,7 @@ const HoldingsScreen = () => {
     const [isTradeVisible, setIsTradeVisible] = useState(false);
     const [tradeToken, setTradeToken] = useState<TokenData | WalletTokenData | null>(null);
     const [isSell, setIsSell] = useState(false);
-    
+
     // Fetch user-created tokens for Launch History tab
     useEffect(() => {
         if (address) {
@@ -468,12 +576,12 @@ const HoldingsScreen = () => {
             symbol: token.symbol,
             logoURI: token.logoURI,
             metadataURI: 'metadataURI' in token ? token.metadataURI : undefined,
-            price: 'currentPrice' in token ? (token.currentPrice || token.initialPrice) : 
-                  ('usdValue' in token && token.balance ? (token.usdValue || 0) / token.balance : 0),
+            price: 'currentPrice' in token ? (token.currentPrice || token.initialPrice) :
+                ('usdValue' in token && token.balance ? (token.usdValue || 0) / token.balance : 0),
             priceChange24h: 'priceChange24h' in token ? token.priceChange24h || 0 : 0,
             balance: 'balance' in token ? token.balance : undefined,
         };
-        
+
         setSelectedToken(tokenDetails);
         setIsTokenDetailsVisible(true);
     };
@@ -488,7 +596,7 @@ const HoldingsScreen = () => {
             // WalletTokenData has decimals, TokenData doesn't
             decimals: 'decimals' in token ? token.decimals : 9, // Default to 9 decimals (SOL)
         };
-        
+
         setTradeToken(token);
         setIsSell(!isBuy); // Set isSell based on the operation type
         setIsTradeVisible(true);
@@ -504,9 +612,9 @@ const HoldingsScreen = () => {
         isSell: boolean;
     }) => {
         if (!address || !tradeToken) return;
-        
+
         console.log('Trade completed:', tradeInfo);
-        
+
         if (tradeInfo.success) {
             // For real-time UI updates:
             try {
@@ -515,42 +623,42 @@ const HoldingsScreen = () => {
                     // Calculate new balance for the token being sold
                     if ('balance' in tradeToken && tradeToken.balance !== undefined) {
                         const newBalance = tradeToken.balance - tradeInfo.inputAmount;
-                        
+
                         // Update the token balance in Redux (will remove if balance <= 0)
                         dispatch(updateTokenBalance({
                             walletAddress: address,
                             tokenAddress: tradeToken.address,
                             newBalance,
                             // Recalculate USD value based on new balance and current price per token
-                            usdValue: newBalance > 0 && tradeToken.usdValue !== undefined && tradeToken.balance !== undefined ? 
+                            usdValue: newBalance > 0 && tradeToken.usdValue !== undefined && tradeToken.balance !== undefined ?
                                 (tradeToken.usdValue / tradeToken.balance) * newBalance : 0
                         }));
-                        
+
                         console.log(`Updated ${tradeToken.symbol} balance: ${newBalance}`);
                     }
-                } 
+                }
                 // 2. If buying a token, either update existing token or fetch all tokens again
                 else {
                     // Check if the token exists in wallet
                     const existingTokenIndex = walletTokensList.findIndex(
                         t => t.address === tradeToken.address || t.mint === tradeToken.address
                     );
-                    
+
                     if (existingTokenIndex !== -1) {
                         // Token exists, update its balance
                         const existingToken = walletTokensList[existingTokenIndex];
                         if (existingToken.balance !== undefined) {
                             const newBalance = existingToken.balance + tradeInfo.outputAmount;
-                            
+
                             dispatch(updateTokenBalance({
                                 walletAddress: address,
                                 tokenAddress: tradeToken.address,
                                 newBalance,
                                 // Recalculate USD value
-                                usdValue: existingToken.usdValue !== undefined && existingToken.balance !== undefined ? 
+                                usdValue: existingToken.usdValue !== undefined && existingToken.balance !== undefined ?
                                     (existingToken.usdValue / existingToken.balance) * newBalance : undefined
                             }));
-                            
+
                             console.log(`Updated ${tradeToken.symbol} balance: ${newBalance}`);
                         }
                     } else {
@@ -590,9 +698,9 @@ const HoldingsScreen = () => {
             <FlatList
                 data={userTokensList}
                 renderItem={({ item }) => (
-                    <TokenListItem 
-                        item={item} 
-                        onPress={handleTokenPress} 
+                    <TokenListItem
+                        item={item}
+                        onPress={handleTokenPress}
                         onTrade={handleTrade}
                     />
                 )}
@@ -631,23 +739,23 @@ const HoldingsScreen = () => {
         }
 
         return (
-            <ScrollView 
+            <ScrollView
                 style={styles.holdingsScrollView}
                 contentContainerStyle={styles.holdingsContentContainer}
                 showsVerticalScrollIndicator={false}
             >
                 <HoldingsStats tokens={walletTokensList} />
-                
+
                 <View style={styles.holdingsHeaderContainer}>
                     <Text style={styles.holdingsHeaderTitle}>Your Tokens</Text>
                 </View>
-                
+
                 {walletTokensList.length > 0 ? (
                     walletTokensList.map(token => (
-                        <TokenListItem 
-                            key={token.mint} 
-                            item={token} 
-                            onPress={handleTokenPress} 
+                        <TokenListItem
+                            key={token.mint}
+                            item={token}
+                            onPress={handleTokenPress}
                             onTrade={handleTrade}
                             isHolding={true}
                         />
@@ -667,13 +775,13 @@ const HoldingsScreen = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, Platform.OS === 'android' && { paddingTop: 46 }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
             <AppHeader title="Token Manager" showDefaultRightIcons={true} />
 
             <View style={styles.contentContainer}>
                 <TabComponent activeTab={activeTab} setActiveTab={setActiveTab} />
-                
+
                 {activeTab === 0 ? renderLaunchHistoryContent() : renderHoldingsContent()}
             </View>
 

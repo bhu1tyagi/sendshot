@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 // Helper functions for token-related operations
 
 /**
@@ -6,36 +7,125 @@
  * @returns Promise resolving to the image URL or undefined
  */
 export async function extractActualImageUrl(metadataValue?: string): Promise<string | undefined> {
-    if (!metadataValue) return undefined;
-    let contentToParse = metadataValue;
-    if (metadataValue.startsWith('http')) {
-        try {
-            const response = await fetch(metadataValue);
-            if (!response.ok) {
-                console.error(`Failed to fetch metadata from URL ${metadataValue}: ${response.statusText}`);
-                contentToParse = metadataValue;
-            } else {
-                contentToParse = await response.text();
-            }
-        } catch (fetchError) {
-            console.error(`Network error fetching metadata from URL ${metadataValue}: ${fetchError}`);
-            contentToParse = metadataValue;
-        }
+    const forAndroid = Platform.OS === 'android';
+    if (!metadataValue) {
+        if (forAndroid) console.log('[Android Img Debug TF] metadataValue is undefined or empty');
+        return undefined;
     }
-    try {
-        const jsonData = JSON.parse(contentToParse);
-        if (jsonData && typeof jsonData.image === 'string' && jsonData.image.startsWith('http')) {
-            return jsonData.image;
-        }
-    } catch (jsonError) {
-        const imageMatch = contentToParse.match(/"image"\s*:\s*"([^"]+)"/);
-        if (imageMatch && imageMatch[1] && imageMatch[1].startsWith('http')) {
-            return imageMatch[1];
-        }
+
+    if (forAndroid) console.log(`[Android Img Debug TF] Initial metadataValue: ${metadataValue}`);
+
+    const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
+    const ipfsHashPattern = /(?:\/ipfs\/|ipfs:\/\/)?(Qm[1-9A-HJ-NP-Za-km-z]{44})/i;
+    const ipfsHashMatch = metadataValue.match(ipfsHashPattern);
+
+    if (ipfsHashMatch && ipfsHashMatch[1]) {
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const directIpfsImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug TF] Detected IPFS hash ${hash}, formed direct URL: ${directIpfsImageUrl}`);
     }
-    if (metadataValue.startsWith('http') && /\.(jpeg|jpg|gif|png|webp)$/i.test(metadataValue)) {
+
+    if (metadataValue.startsWith('http') && imagePattern.test(metadataValue)) {
+        if (forAndroid) console.log(`[Android Img Debug TF] Using metadataValue as direct image URL (http, known extension): ${metadataValue}`);
         return metadataValue;
     }
+
+    let contentToParse = metadataValue;
+    let fetchedSuccessfully = false;
+    let isLikelyDirectImageFromFetch = false;
+
+    let urlToFetchMetadata = metadataValue;
+    if (forAndroid && metadataValue.startsWith('https://ipfs.io/ipfs/')) {
+        const potentialPinataMetadataUrl = metadataValue.replace('https://ipfs.io/ipfs/', 'https://gateway.pinata.cloud/ipfs/');
+        if (forAndroid) console.log(`[Android Img Debug TF] Original metadata URL is ipfs.io. Prioritizing Pinata for metadata fetch: ${potentialPinataMetadataUrl}`);
+        urlToFetchMetadata = potentialPinataMetadataUrl;
+    }
+
+    if (urlToFetchMetadata.startsWith('http')) {
+        if (forAndroid) console.log(`[Android Img Debug TF] metadataValue is HTTP URL, attempting to fetch: ${urlToFetchMetadata}`);
+        try {
+            const response = await fetch(urlToFetchMetadata, { headers: { 'Accept': 'application/json, text/plain, image/*' } });
+            if (!response.ok) {
+                if (forAndroid) console.error(`[Android Img Debug TF] Failed to fetch from URL ${urlToFetchMetadata}: ${response.status} ${response.statusText}`);
+                if (forAndroid && urlToFetchMetadata.includes('gateway.pinata.cloud') && metadataValue.startsWith('https://ipfs.io/ipfs/')) {
+                    if (forAndroid) console.log(`[Android Img Debug TF] Pinata metadata fetch failed. Retrying with original ipfs.io URL: ${metadataValue}`);
+                    const fallbackResponse = await fetch(metadataValue, { headers: { 'Accept': 'application/json, text/plain, image/*' } });
+                    if (!fallbackResponse.ok) {
+                        if (forAndroid) console.error(`[Android Img Debug TF] Fallback fetch from original ipfs.io URL ${metadataValue} also failed: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+                    } else {
+                        contentToParse = await fallbackResponse.text();
+                        const contentType = fallbackResponse.headers.get('content-type');
+                        if (forAndroid) console.log(`[Android Img Debug TF] Fallback fetched from ${metadataValue}. Content-Type: ${contentType}. Text (first 100): ${contentToParse.substring(0, 100)}...`);
+                        fetchedSuccessfully = true;
+                    }
+                }
+            } else {
+                contentToParse = await response.text();
+                const contentType = response.headers.get('content-type');
+                if (forAndroid) console.log(`[Android Img Debug TF] Successfully fetched from ${urlToFetchMetadata}. Content-Type: ${contentType}. Text (first 100): ${contentToParse.substring(0, 100)}...`);
+                fetchedSuccessfully = true;
+            }
+        } catch (fetchError: any) {
+            if (forAndroid) console.error(`[Android Img Debug TF] Network error fetching from URL ${urlToFetchMetadata}: ${fetchError.message || fetchError}`);
+        }
+    } else if (ipfsHashMatch && ipfsHashMatch[1] && !urlToFetchMetadata.startsWith('http')) {
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const constructedImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug TF] metadataValue was raw IPFS hash/URI '${urlToFetchMetadata}', constructed direct image URL: ${constructedImageUrl}`);
+        return constructedImageUrl;
+    }
+
+    let tryParseJson = false;
+    if (fetchedSuccessfully && urlToFetchMetadata.startsWith('http')) {
+        tryParseJson = (typeof contentToParse === 'string' && contentToParse.trim().startsWith('{') && contentToParse.trim().endsWith('}'));
+        if (forAndroid && !tryParseJson) {
+            console.log(`[Android Img Debug TF] Fetched HTTP content, but it doesn't look like a simple JSON object. Content (first 100): ${contentToParse.substring(0,100)}`);
+        }
+    } else if (!urlToFetchMetadata.startsWith('http') && typeof contentToParse === 'string') {
+        tryParseJson = (contentToParse.trim().startsWith('{') && contentToParse.trim().endsWith('}'));
+         if (forAndroid && !tryParseJson) {
+            console.log(`[Android Img Debug TF] Non-HTTP metadataValue, and it doesn't look like a simple JSON object. Content (first 100): ${contentToParse.substring(0,100)}`);
+        }
+    }
+
+    if (tryParseJson) {
+        if (forAndroid) {
+            console.log(`[Android Img Debug TF] PRE-PARSE CHECK. Content being sent to JSON.parse (first 200 chars): ${contentToParse.substring(0,200)}...`);
+        }
+        try {
+            const jsonData = JSON.parse(contentToParse);
+            if (jsonData && typeof jsonData.image === 'string' && jsonData.image.startsWith('http')) {
+                if (forAndroid) console.log(`[Android Img Debug TF] Extracted image from parsed JSON: ${jsonData.image}`);
+                return jsonData.image;
+            } else {
+                if (forAndroid) console.warn('[Android Img Debug TF] Parsed JSON, but "image" field is missing, not a string, or not a valid http(s) URL:', jsonData.image || 'image field missing/invalid');
+            }
+        } catch (jsonError: any) {
+            if (forAndroid) console.warn(`[Android Img Debug TF] JSON.parse FAILED. Error: ${jsonError.message || jsonError}. Content that failed (first 200 chars): "${contentToParse.substring(0, 200)}..."`);
+        }
+    } else if (fetchedSuccessfully && urlToFetchMetadata.startsWith('http')) {
+        if (forAndroid) console.log(`[Android Img Debug TF] HTTP content fetched for ${urlToFetchMetadata} was not a direct image and not identified as JSON for parsing.`);
+    }
+
+    if (typeof urlToFetchMetadata === 'string') {
+        const imageRegexMatch = urlToFetchMetadata.match(/"image"\s*:\s*"([^"]+)"/);
+        if (imageRegexMatch && imageRegexMatch[1] && imageRegexMatch[1].startsWith('http')) {
+            if (forAndroid) console.log(`[Android Img Debug TF] Found image via regex fallback on original metadataValue string: ${imageRegexMatch[1]}`);
+            return imageRegexMatch[1];
+        }
+    }
+
+    if (ipfsHashMatch && ipfsHashMatch[1]) {
+        const hash = ipfsHashMatch[1];
+        const primaryGateway = 'https://gateway.pinata.cloud/ipfs/';
+        const fallbackImageUrl = `${primaryGateway}${hash}`;
+        if (forAndroid) console.log(`[Android Img Debug TF] Fallback: Using IPFS hash ${hash} to form direct URL: ${fallbackImageUrl}`);
+        return fallbackImageUrl;
+    }
+
+    if (forAndroid) console.log(`[Android Img Debug TF] Could not extract a valid image URL from: ${urlToFetchMetadata}`);
     return undefined;
 }
 

@@ -40,13 +40,14 @@ export interface TransferBalanceButtonProps {
   buttonLabel?: string;
   externalModalVisible?: boolean;
   externalSetModalVisible?: (visible: boolean) => void;
+  hideAllButtons?: boolean;
 }
 
 const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
   amIFollowing = false,
   areTheyFollowingMe = false,
-  onPressFollow = () => {},
-  onPressUnfollow = () => {},
+  onPressFollow = () => { },
+  onPressUnfollow = () => { },
   onSendToWallet,
   recipientAddress = '',
   showOnlyTransferButton = false,
@@ -54,6 +55,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
   buttonLabel = 'Send to Wallet',
   externalModalVisible,
   externalSetModalVisible,
+  hideAllButtons = false,
 }) => {
   const dispatch = useAppDispatch();
   const [sendModalVisible, setSendModalVisible] = useState(false);
@@ -79,7 +81,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
   const transactionState = useAppSelector(state => state.transaction);
 
   // Use the wallet from useWallet - now it will work correctly with MWA
-  const {wallet, address, isMWA} = useWallet();
+  const { wallet, address, isMWA } = useWallet();
 
   // Watch for external modal visibility changes
   useEffect(() => {
@@ -102,7 +104,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
       setSelectedFeeTier(transactionState.selectedFeeTier);
       setTransactionStatus(null);
       setWalletAddressError('');
-      
+
       // Reset custom wallet address when modal opens if not showing custom input
       if (!showCustomWalletInput) {
         setCustomWalletAddress(recipientAddress);
@@ -130,7 +132,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
   const validateSolanaAddress = (address: string): boolean => {
     try {
       if (!address || address.trim() === '') return false;
-      
+
       // Check if it's a valid Solana address
       new PublicKey(address);
       return true;
@@ -168,7 +170,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
 
       // Get the correct recipient address based on whether we're using custom input
       const finalRecipientAddress = showCustomWalletInput ? customWalletAddress : recipientAddress;
-      
+
       // Validate wallet address
       if (!validateSolanaAddress(finalRecipientAddress)) {
         setWalletAddressError('Please enter a valid Solana wallet address');
@@ -179,7 +181,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
         Alert.alert('Error', 'Please provide recipient address and amount.');
         return;
       }
-      
+
       const parsedAmount = parseFloat(amountSol);
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
         Alert.alert('Error', 'Invalid SOL amount.');
@@ -273,34 +275,34 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
 
     try {
       setFetchingBalance(true);
-      
+
       const rpcUrl =
         HELIUS_STAKED_URL ||
         ENDPOINTS.helius ||
         clusterApiUrl(CLUSTER as Cluster);
-      
+
       const connection = new Connection(rpcUrl, 'confirmed');
-      
+
       // Convert string publicKey to PublicKey object if needed
-      const publicKey = typeof wallet.publicKey === 'string' 
+      const publicKey = typeof wallet.publicKey === 'string'
         ? new PublicKey(wallet.publicKey)
         : wallet.publicKey;
-        
+
       const balance = await connection.getBalance(publicKey);
-      
+
       // Convert lamports to SOL and format - leave a small amount for transaction fee
       const solBalance = (balance / LAMPORTS_PER_SOL) - 0.001;
-      
+
       // Handle edge cases
       if (solBalance <= 0) {
         Alert.alert('Insufficient Balance', 'Your wallet does not have enough SOL to transfer.');
         setFetchingBalance(false);
         return;
       }
-      
+
       // Set the input amount to the max balance (with 9 decimal places max)
       setAmountSol(solBalance.toFixed(Math.min(9, solBalance.toString().split('.')[1]?.length || 9)));
-      
+
       setFetchingBalance(false);
     } catch (error) {
       console.error('Error fetching SOL balance:', error);
@@ -312,20 +314,20 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
   // Only render the send to wallet button if provider supports it
   const showSendToWalletButton =
     (currentProvider === 'privy' ||
-    currentProvider === 'dynamic' ||
-    currentProvider === 'mwa') && !showOnlyTransferButton;
+      currentProvider === 'dynamic' ||
+      currentProvider === 'mwa') && !showOnlyTransferButton;
 
   return (
     <View style={styles.container}>
-      {!showOnlyTransferButton && (
+      {!showOnlyTransferButton && !hideAllButtons && (
         <TouchableOpacity style={styles.btn} onPress={handlePressFollowButton}>
           <Text style={styles.text}>{followLabel}</Text>
         </TouchableOpacity>
       )}
 
-      {(showSendToWalletButton || showOnlyTransferButton) && (
-        <TouchableOpacity 
-          style={[styles.btn, showOnlyTransferButton && styles.fullWidthBtn]} 
+      {(showSendToWalletButton || showOnlyTransferButton) && !hideAllButtons && (
+        <TouchableOpacity
+          style={[styles.btn, showOnlyTransferButton && styles.fullWidthBtn]}
           onPress={handlePressSendToWallet}
         >
           <Text style={styles.text}>{buttonLabel}</Text>
@@ -369,14 +371,14 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
                     style={[
                       modalOverlayStyles.modeButton,
                       selectedMode === 'priority' &&
-                        modalOverlayStyles.selectedBtn,
+                      modalOverlayStyles.selectedBtn,
                     ]}
                     onPress={() => setSelectedMode('priority')}>
                     <Text
                       style={[
                         modalOverlayStyles.modeButtonText,
                         selectedMode === 'priority' &&
-                          modalOverlayStyles.selectedBtnText,
+                        modalOverlayStyles.selectedBtnText,
                       ]}>
                       Priority
                     </Text>
@@ -391,7 +393,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
                       style={[
                         modalOverlayStyles.modeButtonText,
                         selectedMode === 'jito' &&
-                          modalOverlayStyles.selectedBtnText,
+                        modalOverlayStyles.selectedBtnText,
                       ]}>
                       Jito
                     </Text>
@@ -412,14 +414,14 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
                           style={[
                             modalOverlayStyles.tierButton,
                             selectedFeeTier === tier &&
-                              modalOverlayStyles.selectedBtn,
+                            modalOverlayStyles.selectedBtn,
                           ]}
                           onPress={() => setSelectedFeeTier(tier)}>
                           <Text
                             style={[
                               modalOverlayStyles.tierButtonText,
                               selectedFeeTier === tier &&
-                                modalOverlayStyles.selectedBtnText,
+                              modalOverlayStyles.selectedBtnText,
                             ]}>
                             {tier.charAt(0).toUpperCase() + tier.slice(1)}
                           </Text>
@@ -433,7 +435,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
               <View style={modalOverlayStyles.inputContainer}>
                 <View style={modalOverlayStyles.amountLabelRow}>
                   <Text style={modalOverlayStyles.label}>Amount (SOL)</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={modalOverlayStyles.maxButton}
                     onPress={fetchSolBalance}
                     disabled={fetchingBalance}
@@ -519,7 +521,7 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
                 <TouchableOpacity
                   style={[
                     modalOverlayStyles.modalButton,
-                    {backgroundColor: COLORS.lightBackground},
+                    { backgroundColor: COLORS.lightBackground },
                   ]}
                   onPress={() => setSendModalVisible(false)}
                   disabled={
@@ -530,8 +532,8 @@ const TransferBalanceButton: React.FC<TransferBalanceButtonProps> = ({
                 <TouchableOpacity
                   style={[
                     modalOverlayStyles.modalButton,
-                    {backgroundColor: COLORS.brandBlue},
-                    !!transactionStatus && {opacity: 0.5},
+                    { backgroundColor: COLORS.brandBlue },
+                    !!transactionStatus && { opacity: 0.5 },
                   ]}
                   onPress={handleSendTransaction}
                   disabled={!!transactionStatus}>

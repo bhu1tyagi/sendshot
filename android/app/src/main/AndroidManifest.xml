@@ -25,9 +25,9 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="solanaappkit"/>
-        <data android:scheme="com.sendai.solanaappkit"/>
-        <data android:scheme="exp+solana-app-kit"/>
+        <data android:scheme="sendshot"/>
+        <data android:scheme="com.sendai.sendshot"/>
+        <data android:scheme="exp+send-shot"/>
       </intent-filter>
     </activity>
   </application>

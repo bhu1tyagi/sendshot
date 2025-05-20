@@ -610,7 +610,7 @@ function WalletScreen({
           </TouchableOpacity>
 
           {/* Add Transaction History Card */}
-          {nativeBalance !== null && nativeBalance > 0 && (
+          {/* {nativeBalance !== null && nativeBalance > 0 && (
             <View style={styles.transactionHistoryCard}>
               <Text style={styles.transactionHistoryTitle}>Recent Activity</Text>
               <View style={styles.transactionHistoryContent}>
@@ -619,7 +619,7 @@ function WalletScreen({
                 </Text>
               </View>
             </View>
-          )}
+          )} */}
         </View>
 
         {/* Legal Links Section */}
@@ -655,10 +655,11 @@ function WalletScreen({
       {/* Transfer Balance Modal */}
       <TransferBalanceButton
         showCustomWalletInput={true}
-        showOnlyTransferButton={true}
+        showOnlyTransferButton={false}
         buttonLabel="Send Funds"
         externalModalVisible={sendModalVisible}
         externalSetModalVisible={setSendModalVisible}
+        hideAllButtons={true}
       />
     </View>
   );

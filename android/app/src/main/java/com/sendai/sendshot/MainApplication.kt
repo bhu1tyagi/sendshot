@@ -1,4 +1,4 @@
-package com.sendai.solanaappkit
+package com.sendai.sendshot
 
 import android.app.Application
 import android.content.res.Configuration

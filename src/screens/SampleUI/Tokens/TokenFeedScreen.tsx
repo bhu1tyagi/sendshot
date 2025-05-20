@@ -10,6 +10,7 @@ import {
     NativeScrollEvent,
     LogBox,
     FlatList,
+    Platform,
 } from 'react-native';
 import { TabView, SceneMap } from 'react-native-tab-view';
 import { useNavigation } from '@react-navigation/native';
@@ -39,6 +40,7 @@ import { TokenDisplay } from './utils/types';
 
 // Import utils
 import { getTokenPrice, getTokenPriceChange } from './utils/tokenHelpers';
+import { IPFSAwareImage } from '@/shared/utils/IPFSImage';
 
 // Disable specific warning about VirtualizedLists inside Lists
 LogBox.ignoreLogs([
@@ -422,7 +424,7 @@ const TokenFeedScreen = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, Platform.OS === 'android' && { paddingTop: 46 }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
             <AppHeader title="Token Feed" showDefaultRightIcons={true} />
             <Animated.View style={[{ opacity: fadeAnim }, { flex: 1 }]}>
