@@ -22,13 +22,13 @@ const TokenFeedListItem: React.FC<TokenFeedListItemProps> = ({
 
         switch (item.protocolType) {
             case 'pumpfun':
-                return <IPFSAwareImage source={require('@/assets/images/Pumpfun_logo.png')} style={styles.protocolLogo} />;
+                return <Image source={require('@/assets/images/Pumpfun_logo.png')} style={styles.protocolLogo} />;
             case 'raydium':
                 return <Icons.RadyuimIcom width={18} height={18} color="#F5C05E" />;
             case 'tokenmill':
                 return <Icons.TokenMillIcon width={18} height={18} color={COLORS.white} />;
             case 'meteora':
-                return <IPFSAwareImage source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
+                return <Image source={require('@/assets/images/meteora.jpg')} style={styles.protocolLogo} />;
             default:
                 return null;
         }

@@ -10,7 +10,7 @@ import {
   TokenType
 } from '../types';
 import { useWallet } from '@/modules/walletProviders/hooks/useWallet';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import BN from 'bn.js';
 import { Buffer } from 'buffer';
 import { SERVER_URL } from '@env';
@@ -145,8 +145,22 @@ export const createConfig = async (
     onStatusUpdate?.('Signing transaction...');
     
     // Sign and send the transaction
-    const txSignature = await wallet.sendBase64Transaction(
-      result.transaction,
+    const txBufferConfig = Buffer.from(result.transaction, 'base64');
+    let txToSignConfig: Transaction | VersionedTransaction;
+    try {
+      txToSignConfig = VersionedTransaction.deserialize(new Uint8Array(txBufferConfig));
+    } catch (e) {
+      console.warn('Failed to deserialize as VersionedTransaction for createConfig, trying legacy Transaction:', e);
+      txToSignConfig = Transaction.from(new Uint8Array(txBufferConfig));
+      if (!txToSignConfig.feePayer && wallet.publicKey) {
+        txToSignConfig.feePayer = new PublicKey(wallet.publicKey);
+      } else if (!txToSignConfig.feePayer) {
+        console.error('CRITICAL: Legacy transaction for createConfig deserialized without a feePayer and wallet.publicKey is unavailable.');
+      }
+    }
+
+    const txSignature = await wallet.sendTransaction(
+      txToSignConfig,
       connection,
       { confirmTransaction: true, statusCallback: onStatusUpdate }
     );
@@ -211,9 +225,23 @@ export const buildCurveByMarketCap = async (
     
     let txSignature;
     try {
+      const txBufferCurve = Buffer.from(result.transaction, 'base64');
+      let txToSignCurve: Transaction | VersionedTransaction;
+      try {
+        txToSignCurve = VersionedTransaction.deserialize(new Uint8Array(txBufferCurve));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for buildCurveByMarketCap, trying legacy Transaction:', e);
+        txToSignCurve = Transaction.from(new Uint8Array(txBufferCurve));
+        if (!txToSignCurve.feePayer && wallet.publicKey) {
+          txToSignCurve.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignCurve.feePayer) {
+          console.error('CRITICAL: Legacy transaction for buildCurveByMarketCap deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
+
       // Try to sign and send the transaction with confirmation - INCREASED TIMEOUT AND RETRIES
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      txSignature = await wallet.sendTransaction(
+        txToSignCurve,
         connection,
         { 
           confirmTransaction: true, 
@@ -228,8 +256,22 @@ export const buildCurveByMarketCap = async (
       // If confirmation fails, try to send without waiting for confirmation
       onStatusUpdate?.('Confirmation timed out. Sending without confirmation...');
       
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      const txBufferCurveRetry = Buffer.from(result.transaction, 'base64');
+      let txToSignCurveRetry: Transaction | VersionedTransaction;
+      try {
+        txToSignCurveRetry = VersionedTransaction.deserialize(new Uint8Array(txBufferCurveRetry));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for buildCurveByMarketCap retry, trying legacy Transaction:', e);
+        txToSignCurveRetry = Transaction.from(new Uint8Array(txBufferCurveRetry));
+        if (!txToSignCurveRetry.feePayer && wallet.publicKey) {
+          txToSignCurveRetry.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignCurveRetry.feePayer) {
+          console.error('CRITICAL: Legacy transaction for buildCurveByMarketCap retry deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
+      
+      txSignature = await wallet.sendTransaction(
+        txToSignCurveRetry,
         connection,
         { confirmTransaction: false, statusCallback: onStatusUpdate }
       );
@@ -335,9 +377,22 @@ export const createPool = async (
     
     let txSignature;
     try {
+      const txBufferPool = Buffer.from(result.transaction, 'base64');
+      let txToSignPool: Transaction | VersionedTransaction;
+      try {
+        txToSignPool = VersionedTransaction.deserialize(new Uint8Array(txBufferPool));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for createPool, trying legacy Transaction:', e);
+        txToSignPool = Transaction.from(new Uint8Array(txBufferPool));
+        if (!txToSignPool.feePayer && wallet.publicKey) {
+          txToSignPool.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignPool.feePayer) {
+          console.error('CRITICAL: Legacy transaction for createPool deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
       // Try to sign and send the transaction with confirmation - INCREASED TIMEOUT AND RETRIES
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      txSignature = await wallet.sendTransaction(
+        txToSignPool,
         connection,
         { 
           confirmTransaction: true, 
@@ -352,8 +407,22 @@ export const createPool = async (
       // If confirmation fails, try to send without waiting for confirmation
       onStatusUpdate?.('Confirmation timed out. Sending without confirmation...');
       
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      const txBufferPoolRetry = Buffer.from(result.transaction, 'base64');
+      let txToSignPoolRetry: Transaction | VersionedTransaction;
+      try {
+        txToSignPoolRetry = VersionedTransaction.deserialize(new Uint8Array(txBufferPoolRetry));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for createPool retry, trying legacy Transaction:', e);
+        txToSignPoolRetry = Transaction.from(new Uint8Array(txBufferPoolRetry));
+        if (!txToSignPoolRetry.feePayer && wallet.publicKey) {
+          txToSignPoolRetry.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignPoolRetry.feePayer) {
+          console.error('CRITICAL: Legacy transaction for createPool retry deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
+
+      txSignature = await wallet.sendTransaction(
+        txToSignPoolRetry,
         connection,
         { confirmTransaction: false, statusCallback: onStatusUpdate }
       );
@@ -696,9 +765,22 @@ export const createTokenWithCurve = async (
 
       onStatusUpdate?.('Signing transaction...');
       
+      const txBufferPoolAndBuy = Buffer.from(poolAndBuyResult.transaction, 'base64');
+      let txToSignPoolAndBuy: Transaction | VersionedTransaction;
+      try {
+        txToSignPoolAndBuy = VersionedTransaction.deserialize(new Uint8Array(txBufferPoolAndBuy));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for createTokenWithCurve (poolAndBuy), trying legacy Transaction:', e);
+        txToSignPoolAndBuy = Transaction.from(new Uint8Array(txBufferPoolAndBuy));
+        if (!txToSignPoolAndBuy.feePayer && wallet.publicKey) {
+          txToSignPoolAndBuy.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignPoolAndBuy.feePayer) {
+          console.error('CRITICAL: Legacy transaction for createTokenWithCurve (poolAndBuy) deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
       // Sign and send the transaction
-      const txSignature = await wallet.sendBase64Transaction(
-        poolAndBuyResult.transaction,
+      const txSignature = await wallet.sendTransaction(
+        txToSignPoolAndBuy,
         connection,
         { confirmTransaction: true, statusCallback: onStatusUpdate }
       );
@@ -823,12 +905,24 @@ export const createPoolAndBuy = async (
 
     onStatusUpdate?.('Signing transaction...');
     
-    // Sign and send the transaction
     let txSignature;
     try {
+      const txBufferPoolAndBuy = Buffer.from(result.transaction, 'base64');
+      let txToSignPoolAndBuy: Transaction | VersionedTransaction;
+      try {
+        txToSignPoolAndBuy = VersionedTransaction.deserialize(new Uint8Array(txBufferPoolAndBuy));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for createPoolAndBuy, trying legacy Transaction:', e);
+        txToSignPoolAndBuy = Transaction.from(new Uint8Array(txBufferPoolAndBuy));
+        if (!txToSignPoolAndBuy.feePayer && wallet.publicKey) {
+          txToSignPoolAndBuy.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignPoolAndBuy.feePayer) {
+          console.error('CRITICAL: Legacy transaction for createPoolAndBuy deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
       // Try to sign and send the transaction with increased timeout and retries
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      txSignature = await wallet.sendTransaction(
+        txToSignPoolAndBuy,
         connection,
         { 
           confirmTransaction: true, 
@@ -843,8 +937,22 @@ export const createPoolAndBuy = async (
       // If confirmation fails, try to send without waiting for confirmation
       onStatusUpdate?.('Confirmation timed out. Sending without waiting for confirmation...');
       
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
+      const txBufferPoolAndBuyRetry = Buffer.from(result.transaction, 'base64');
+      let txToSignPoolAndBuyRetry: Transaction | VersionedTransaction;
+      try {
+        txToSignPoolAndBuyRetry = VersionedTransaction.deserialize(new Uint8Array(txBufferPoolAndBuyRetry));
+      } catch (e) {
+        console.warn('Failed to deserialize as VersionedTransaction for createPoolAndBuy retry, trying legacy Transaction:', e);
+        txToSignPoolAndBuyRetry = Transaction.from(new Uint8Array(txBufferPoolAndBuyRetry));
+        if (!txToSignPoolAndBuyRetry.feePayer && wallet.publicKey) {
+          txToSignPoolAndBuyRetry.feePayer = new PublicKey(wallet.publicKey);
+        } else if (!txToSignPoolAndBuyRetry.feePayer) {
+          console.error('CRITICAL: Legacy transaction for createPoolAndBuy retry deserialized without a feePayer and wallet.publicKey is unavailable.');
+        }
+      }
+      
+      txSignature = await wallet.sendTransaction(
+        txToSignPoolAndBuyRetry,
         connection,
         { confirmTransaction: false, statusCallback: onStatusUpdate }
       );
@@ -978,9 +1086,22 @@ export const createPoolMetadata = async (
 
     onStatusUpdate?.('Signing transaction...');
     
+    const txBufferMetadata = Buffer.from(result.transaction, 'base64');
+    let txToSignMetadata: Transaction | VersionedTransaction;
+    try {
+      txToSignMetadata = VersionedTransaction.deserialize(new Uint8Array(txBufferMetadata));
+    } catch (e) {
+      console.warn('Failed to deserialize as VersionedTransaction for createPoolMetadata, trying legacy Transaction:', e);
+      txToSignMetadata = Transaction.from(new Uint8Array(txBufferMetadata));
+      if (!txToSignMetadata.feePayer && wallet.publicKey) {
+        txToSignMetadata.feePayer = new PublicKey(wallet.publicKey);
+      } else if (!txToSignMetadata.feePayer) {
+        console.error('CRITICAL: Legacy transaction for createPoolMetadata deserialized without a feePayer and wallet.publicKey is unavailable.');
+      }
+    }
     // Sign and send the transaction
-    const txSignature = await wallet.sendBase64Transaction(
-      result.transaction,
+    const txSignature = await wallet.sendTransaction(
+      txToSignMetadata,
       connection,
       { confirmTransaction: true, statusCallback: onStatusUpdate }
     );
@@ -1134,47 +1255,48 @@ export const executeTrade = async (
 
     onStatusUpdate?.('Signing transaction...');
     
-    // Get connection from RPC - we'll use the default connection 
-    // instead of trying to get it from wallet
-    // This assumes wallet.sendBase64Transaction doesn't need a separate connection parameter
-    // or will use its own connection if none is provided
+    const txBufferSwap = Buffer.from(result.transaction, 'base64');
+    let txToSignSwap: Transaction | VersionedTransaction;
+    try {
+      txToSignSwap = VersionedTransaction.deserialize(new Uint8Array(txBufferSwap));
+    } catch (e) {
+      console.warn('Failed to deserialize as VersionedTransaction for executeTrade, trying legacy Transaction:', e);
+      txToSignSwap = Transaction.from(new Uint8Array(txBufferSwap));
+      if (!txToSignSwap.feePayer && wallet.publicKey) {
+        txToSignSwap.feePayer = new PublicKey(wallet.publicKey);
+      } else if (!txToSignSwap.feePayer) {
+        console.error('CRITICAL: Legacy transaction for executeTrade deserialized without a feePayer and wallet.publicKey is unavailable.');
+      }
+    }
     
-    let txSignature;
+    let txSignature: string;
     
     try {
-      // Try with built-in connection first
-      txSignature = await wallet.sendBase64Transaction(
-        result.transaction,
-        null, // Let the wallet use its own connection
+      // The wallet.sendTransaction method requires a connection.
+      // The original code attempted with null, then created a fallback.
+      // We will use the fallback connection logic directly here.
+      console.log('Attempting to create a fallback connection for executeTrade...');
+      
+      // Connection is already imported at the top of the file.
+      // No need for: const { Connection } = require('@solana/web3.js');
+      
+      // Create a fallback connection to a public RPC endpoint
+      // TODO: Use a configured RPC endpoint instead of hardcoding
+      const fallbackConnection = new Connection(
+        process.env.RPC_URL || 'https://api.mainnet-beta.solana.com', // Example: Prefer env var
+        'confirmed'
+      );
+      
+      console.log('Using fallback connection for transaction in executeTrade');
+      txSignature = await wallet.sendTransaction(
+        txToSignSwap,
+        fallbackConnection,
         { confirmTransaction: true, statusCallback: onStatusUpdate }
       );
-    } catch (err) {
-      // Cast the unknown error to any type to safely check its string representation
-      const sendError = err as any;
-      
-      // If that fails and it looks like we need to provide a connection
-      if (sendError.toString().includes('connection') || sendError.toString().includes('undefined')) {
-        console.log('Attempting to create a fallback connection...');
-        
-        // Import Connection from already imported libraries
-        const { Connection } = require('@solana/web3.js');
-        
-        // Create a fallback connection to a public RPC endpoint
-        const fallbackConnection = new Connection(
-          'https://api.mainnet-beta.solana.com',
-          'confirmed'
-        );
-        
-        console.log('Using fallback connection for transaction');
-        txSignature = await wallet.sendBase64Transaction(
-          result.transaction,
-          fallbackConnection,
-          { confirmTransaction: true, statusCallback: onStatusUpdate }
-        );
-      } else {
-        // If it's some other error, rethrow it
-        throw sendError;
-      }
+    } catch (sendError) {
+      // If it's some other error, rethrow it
+      console.error('Error sending transaction in executeTrade:', sendError);
+      throw sendError;
     }
     
     if (!txSignature) {
@@ -1248,9 +1370,23 @@ export const addLiquidity = async (
 
     onStatusUpdate?.('Signing transaction...');
     
+    const txBufferAddLiq = Buffer.from(result.transaction, 'base64');
+    let txToSignAddLiq: Transaction | VersionedTransaction;
+    try {
+      txToSignAddLiq = VersionedTransaction.deserialize(new Uint8Array(txBufferAddLiq));
+    } catch (e) {
+      console.warn('Failed to deserialize as VersionedTransaction for addLiquidity, trying legacy Transaction:', e);
+      txToSignAddLiq = Transaction.from(new Uint8Array(txBufferAddLiq));
+      if (!txToSignAddLiq.feePayer && wallet.publicKey) {
+        txToSignAddLiq.feePayer = new PublicKey(wallet.publicKey);
+      } else if (!txToSignAddLiq.feePayer) {
+        console.error('CRITICAL: Legacy transaction for addLiquidity deserialized without a feePayer and wallet.publicKey is unavailable.');
+      }
+    }
+
     // Sign and send the transaction
-    const txSignature = await wallet.sendBase64Transaction(
-      result.transaction,
+    const txSignature = await wallet.sendTransaction(
+      txToSignAddLiq,
       connection,
       { confirmTransaction: true, statusCallback: onStatusUpdate }
     );
@@ -1292,9 +1428,22 @@ export const removeLiquidity = async (
 
     onStatusUpdate?.('Signing transaction...');
     
+    const txBufferRemoveLiq = Buffer.from(result.transaction, 'base64');
+    let txToSignRemoveLiq: Transaction | VersionedTransaction;
+    try {
+      txToSignRemoveLiq = VersionedTransaction.deserialize(new Uint8Array(txBufferRemoveLiq));
+    } catch (e) {
+      console.warn('Failed to deserialize as VersionedTransaction for removeLiquidity, trying legacy Transaction:', e);
+      txToSignRemoveLiq = Transaction.from(new Uint8Array(txBufferRemoveLiq));
+      if (!txToSignRemoveLiq.feePayer && wallet.publicKey) {
+        txToSignRemoveLiq.feePayer = new PublicKey(wallet.publicKey);
+      } else if (!txToSignRemoveLiq.feePayer) {
+        console.error('CRITICAL: Legacy transaction for removeLiquidity deserialized without a feePayer and wallet.publicKey is unavailable.');
+      }
+    }
     // Sign and send the transaction
-    const txSignature = await wallet.sendBase64Transaction(
-      result.transaction,
+    const txSignature = await wallet.sendTransaction(
+      txToSignRemoveLiq,
       connection,
       { confirmTransaction: true, statusCallback: onStatusUpdate }
     );
