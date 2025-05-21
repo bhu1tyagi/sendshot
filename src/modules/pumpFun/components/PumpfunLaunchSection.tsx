@@ -39,11 +39,6 @@ export const PumpfunLaunchSection: React.FC<PumpfunLaunchSectionProps> = ({
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  // Verification options
-  const [verifyToken, setVerifyToken] = useState(true);
-  const [dataIntegrityAccepted, setDataIntegrityAccepted] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-
   // Add a new state variable to track whether social fields are visible
   const [showSocials, setShowSocials] = useState(false);
 
@@ -75,15 +70,6 @@ export const PumpfunLaunchSection: React.FC<PumpfunLaunchSectionProps> = ({
       return;
     }
 
-    // Verify that the user has accepted terms if verification is enabled
-    if (verifyToken && (!dataIntegrityAccepted || !termsAccepted)) {
-      Alert.alert(
-        'Verification Terms',
-        'You must accept both data integrity and terms to verify your token.',
-      );
-      return;
-    }
-
     setLoading(true);
     setStatus('Preparing token launch...');
 
@@ -97,10 +83,6 @@ export const PumpfunLaunchSection: React.FC<PumpfunLaunchSectionProps> = ({
         website,
         imageUri,
         solAmount: Number(solAmount),
-        // Add verification options
-        verifyToken,
-        dataIntegrityAccepted,
-        termsAccepted,
         onStatusUpdate: (newStatus) => {
           console.log('Launch token status:', newStatus);
           // Use TransactionService to filter raw error messages
@@ -283,64 +265,6 @@ export const PumpfunLaunchSection: React.FC<PumpfunLaunchSectionProps> = ({
                 editable={!loading}
               />
             </View>
-          </View>
-        )}
-      </View>
-
-      {/* Token Verification Options */}
-      <View style={styles.verificationSection}>
-        <Text style={styles.verificationTitle}>Token Verification</Text>
-
-        <View style={styles.switchRow}>
-          <View style={styles.switchLabelContainer}>
-            <Text style={styles.switchLabel}>Verify on RugCheck</Text>
-            <Text style={styles.switchDescription}>Enable verification for your token</Text>
-          </View>
-          <Switch
-            value={verifyToken}
-            onValueChange={setVerifyToken}
-            disabled={loading}
-            trackColor={{ false: COLORS.darkerBackground, true: COLORS.brandBlue + '50' }}
-            thumbColor={verifyToken ? COLORS.brandBlue : COLORS.greyMid}
-            style={styles.switchControl}
-          />
-        </View>
-
-        {verifyToken && (
-          <View style={styles.verificationOptionsContainer}>
-            <View style={styles.switchRow}>
-              <View style={styles.switchLabelContainer}>
-                <Text style={styles.switchLabel}>Data Accuracy</Text>
-                <Text style={styles.switchDescription}>I confirm the data provided is accurate</Text>
-              </View>
-              <Switch
-                value={dataIntegrityAccepted}
-                onValueChange={setDataIntegrityAccepted}
-                disabled={loading}
-                trackColor={{ false: COLORS.darkerBackground, true: COLORS.brandBlue + '50' }}
-                thumbColor={dataIntegrityAccepted ? COLORS.brandBlue : COLORS.greyMid}
-                style={styles.switchControl}
-              />
-            </View>
-
-            <View style={styles.switchRow}>
-              <View style={styles.switchLabelContainer}>
-                <Text style={styles.switchLabel}>Terms of Service</Text>
-                <Text style={styles.switchDescription}>I accept the RugCheck terms of service</Text>
-              </View>
-              <Switch
-                value={termsAccepted}
-                onValueChange={setTermsAccepted}
-                disabled={loading}
-                trackColor={{ false: COLORS.darkerBackground, true: COLORS.brandBlue + '50' }}
-                thumbColor={termsAccepted ? COLORS.brandBlue : COLORS.greyMid}
-                style={styles.switchControl}
-              />
-            </View>
-
-            <Text style={styles.verificationNote}>
-              Verifying your token on RugCheck helps build trust with your community.
-            </Text>
           </View>
         )}
       </View>

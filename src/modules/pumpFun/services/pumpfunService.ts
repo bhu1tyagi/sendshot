@@ -1,4 +1,4 @@
-import { PublicKey, Keypair, LAMPORTS_PER_SOL, TransactionInstruction, MessageV0, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { PublicKey, Keypair, LAMPORTS_PER_SOL, TransactionInstruction, MessageV0, TransactionMessage, VersionedTransaction, SystemProgram } from '@solana/web3.js';
 import { PumpFunSDK } from 'pumpdotfun-sdk';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { PumpSdk, BondingCurve,  getBuyTokenAmountFromSolAmount } from "@pump-fun/pump-sdk"
@@ -43,6 +43,10 @@ export async function createAndBuyTokenViaPumpfun({
   const connection = provider.connection;
   const pumpSdk = new PumpSdk(connection);
   const creatorPubkey = new PublicKey(userPublicKey);
+  // This is the recipient for Pump.fun's own platform fees, as used by their SDK.
+  const pumpFunPlatformFeeRecipient = new PublicKey(COMMISSION_WALLET);
+  // This is the recipient for our additional 0.5% platform commission.
+  const ourPlatformCommissionWallet = new PublicKey(COMMISSION_WALLET);
 
   console.log('[createAndBuyTokenViaPumpfun] =>', {
     userPublicKey,
@@ -53,9 +57,24 @@ export async function createAndBuyTokenViaPumpfun({
   });
 
   try {
+    const OUR_COMMISSION_RATE = 0.005; // 0.5%
+    const totalSolLamportsUserPays = Math.floor(solAmount * LAMPORTS_PER_SOL);
+
+    const ourCommissionLamports = Math.floor(totalSolLamportsUserPays * OUR_COMMISSION_RATE);
+    const solAmountForPumpFunBuyLamports = totalSolLamportsUserPays - ourCommissionLamports;
+
+    if (solAmountForPumpFunBuyLamports < 0) {
+      const errMessage = "SOL amount is too small to cover the 0.5% platform commission fee.";
+      onStatusUpdate?.(`Error: ${errMessage}`);
+      throw new Error(errMessage);
+    }
+    
+    onStatusUpdate?.(`Total SOL input: ${solAmount} SOL`);
+    onStatusUpdate?.(`Platform commission (0.5%): ${ourCommissionLamports / LAMPORTS_PER_SOL} SOL to ${ourPlatformCommissionWallet.toBase58()}`);
+    onStatusUpdate?.(`Net SOL for Pump.fun buy: ${solAmountForPumpFunBuyLamports / LAMPORTS_PER_SOL} SOL`);
+
     onStatusUpdate?.('Uploading token metadata...');
     const uploadEndpoint = `${SERVER_URL}/api/pumpfun/uploadMetadata`;
-    const commissionWallet = new PublicKey(COMMISSION_WALLET);
 
     const mint = Keypair.generate();
 
@@ -108,14 +127,27 @@ export async function createAndBuyTokenViaPumpfun({
     onStatusUpdate?.('Generating mint keypair...');
     // "create" instructions
     onStatusUpdate?.('Preparing token creation...');
-    const createIx = await pumpSdk.createInstruction(mint.publicKey, metadata.name, metadata.symbol, metadataUri, commissionWallet, creatorPubkey);
+    const createIx = await pumpSdk.createInstruction(mint.publicKey, metadata.name, metadata.symbol, metadataUri, pumpFunPlatformFeeRecipient, creatorPubkey);
+
+    const instructions: TransactionInstruction[] = [createIx];
+
+    // Add our platform's commission transfer instruction
+    if (ourCommissionLamports > 0) {
+      const ourCommissionTransferIx = SystemProgram.transfer({
+        fromPubkey: creatorPubkey,
+        toPubkey: ourPlatformCommissionWallet,
+        lamports: ourCommissionLamports,
+      });
+      instructions.push(ourCommissionTransferIx);
+      onStatusUpdate?.(`Added 0.5% commission transfer instruction.`);
+    }
 
     // optional "buy" instructions
     let buyIx: TransactionInstruction[] | null = null;
 
-    if (solAmount > 0) {
-      onStatusUpdate?.('Preparing initial buy instructions...');
-
+    // Only attempt buy if there's SOL left after our commission and user intended to buy initially
+    if (solAmountForPumpFunBuyLamports > 0 && solAmount > 0) {
+      onStatusUpdate?.('Preparing initial buy instructions (after platform commission)...');
 
       const global = await pumpSdk.fetchGlobal();
 
@@ -129,38 +161,29 @@ export async function createAndBuyTokenViaPumpfun({
         creator: creatorPubkey,
       }
 
-      // Convert solAmount to lamports before creating BN
-      const solAmountLamports = Math.floor(solAmount * LAMPORTS_PER_SOL);
-      const buyTokenAmount = getBuyTokenAmountFromSolAmount(global, bondingCurve, new BN(solAmountLamports), true);
+      // Convert solAmountForPumpFunBuyLamports to BN for SDK
+      const solAmountForBuyBN = new BN(solAmountForPumpFunBuyLamports);
+      const buyTokenAmount = getBuyTokenAmountFromSolAmount(global, bondingCurve, solAmountForBuyBN, true);
 
-      // global: Global, bondingCurveAccountInfo: AccountInfo<Buffer> | null, bondingCurve: BondingCurve, mint: PublicKey, user: PublicKey, amount: BN, solAmount: BN, slippage: number, newCoinCreator: PublicKey
-       buyIx = await pumpSdk.buyInstructions(global, null, bondingCurve, mint.publicKey, creatorPubkey, buyTokenAmount, new BN(solAmountLamports), 1, commissionWallet);
+       buyIx = await pumpSdk.buyInstructions(global, null, bondingCurve, mint.publicKey, creatorPubkey, buyTokenAmount, solAmountForBuyBN, 1, pumpFunPlatformFeeRecipient);
+       instructions.push(...buyIx);
+    } else if (solAmount > 0 && solAmountForPumpFunBuyLamports <= 0) {
+      onStatusUpdate?.('Warning: SOL amount for Pump.fun buy is zero or less after 0.5% commission. Only token creation and commission transfer will occur.');
     }
 
     const {blockhash} = await provider.connection.getLatestBlockhash();
 
-    let msg : MessageV0;
-    if (buyIx) {
-      const messageV0 = new TransactionMessage({
-        payerKey: new PublicKey(userPublicKey),
-        recentBlockhash: blockhash,
-        instructions: [createIx, ...buyIx],
-      }).compileToV0Message()
-      msg = messageV0;
-    } else {
-      msg = new TransactionMessage({
-        payerKey: new PublicKey(userPublicKey),
-        recentBlockhash: blockhash,
-        instructions: [createIx],
-      }).compileToV0Message()
-    }
-
-    const tx = new VersionedTransaction(msg);
+    const messageV0 = new TransactionMessage({
+      payerKey: creatorPubkey, // Ensure this is PublicKey
+      recentBlockhash: blockhash,
+      instructions: instructions, // Use the combined instructions array
+    }).compileToV0Message();
+    
+    const tx = new VersionedTransaction(messageV0);
     tx.sign([mint]);
 
-
     // Use the new transaction service
-    console.log('msg =>', msg);
+    console.log('msg =>', messageV0);
     onStatusUpdate?.('Sending transaction for approval...');
     const txSignature = await TransactionService.signAndSendTransaction(
       { type: 'transaction', transaction: tx },

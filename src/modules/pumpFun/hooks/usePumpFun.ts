@@ -325,25 +325,25 @@ export function usePumpFun() {
           }
           
           // If verification was requested, submit the token for verification
-          if (verifyToken && dataIntegrityAccepted && termsAccepted) {
-            onStatusUpdate?.('Token launched, submitting for verification...');
+          // if (verifyToken && dataIntegrityAccepted && termsAccepted) {
+          //   onStatusUpdate?.('Token launched, submitting for verification...');
             
-            // Prepare social links for verification
-            const links: { [key: string]: string } = {};
-            if (website) links.website = website;
-            if (twitter) links.twitter = twitter;
-            if (telegram) links.telegram = telegram;
+          //   // Prepare social links for verification
+          //   const links: { [key: string]: string } = {};
+          //   if (website) links.website = website;
+          //   if (twitter) links.twitter = twitter;
+          //   if (telegram) links.telegram = telegram;
             
-            // Submit the token for verification
-            await submitTokenForVerification(
-              result.mint,
-              description,
-              links,
-              dataIntegrityAccepted,
-              termsAccepted,
-              onStatusUpdate
-            );
-          }
+          //   // Submit the token for verification
+          //   await submitTokenForVerification(
+          //     result.mint,
+          //     description,
+          //     links,
+          //     dataIntegrityAccepted,
+          //     termsAccepted,
+          //     onStatusUpdate
+          //   );
+          // }
           
           return result;
         }
